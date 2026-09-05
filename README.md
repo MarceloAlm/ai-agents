@@ -2,7 +2,8 @@
 
 Containers Podman para uso de agentes de IA de forma **isolada e consistente**: como o agente roda dentro de uma imagem, não há diferenças de comportamento entre workstations — o agente enxerga sempre o mesmo ambiente, independente do host.
 
-O objetivo principal deste projeto é o agente **opencode** (na variante base e na variante com .NET). O `openclaude` segue o mesmo princípio, mas recebeu menos trabalho por depender de uma assinatura de modelo. A stack local Ollama + LiteLLM é **opcional** e ainda está em construção.
+Está disponível o agente **opencode** (na variante base e na variante com .NET). 
+O `openclaude` depende de uma assinatura de modelo. A stack local Ollama + LiteLLM é **opcional** e ainda está em construção, precisa de um hardware dedicado para conseguir atender ao desempenho de tokens.
 
 ## Estrutura
 
@@ -34,8 +35,8 @@ A versão do agente é definida na hora do build. Os scripts `build.sh` aceitam 
 
 ```bash
 ./opencode/build.sh           # última versão publicada no npm
-./opencode/build.sh 2.0.0     # fixa uma versão específica no build
-./opencode-dotnet/build.sh 2.0.0
+./opencode/build.sh 1.18.29   # fixa uma versão específica no build
+./opencode-dotnet/build.sh 1.18.28
 ```
 
 ## Instalação recomendada (uso global)
