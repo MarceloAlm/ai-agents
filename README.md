@@ -25,13 +25,14 @@ Os builds são feitos **a partir da raiz do projeto**, pois os scripts usam o di
 ```bash
 ./opencode/build.sh            # imagem "opencode"
 ./opencode-dotnet/build.sh     # imagem "opencode:dotnet"
-podman build -t openclaude ./openclaude
+./openclaude/build.sh          # imagem "openclaude"
 ```
 
-A versão do agente é definida na hora do build. O `build.sh` já fixa uma versão via `--build-arg OPENCODE_VERSION=<versao>`; sem ela, o Dockerfile instala o pacote `opencode-ai@latest` (padrão):
+A versão do agente é definida na hora do build. O `opencode/build.sh` aceita a versão como argumento; sem ele, usa a **latest** (padrão do Dockerfile):
 
 ```bash
-podman build --build-arg OPENCODE_VERSION=X.Y.Z -t opencode ./opencode
+./opencode/build.sh          # opencode-ai@latest
+./opencode/build.sh 2.0.0    # fixa uma versão específica no build
 ```
 
 ## Instalação recomendada (uso global)
