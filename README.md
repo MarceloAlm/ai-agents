@@ -28,11 +28,12 @@ Os builds são feitos **a partir da raiz do projeto**, pois os scripts usam o di
 ./openclaude/build.sh          # imagem "openclaude"
 ```
 
-A versão do agente é definida na hora do build. O `opencode/build.sh` aceita a versão como argumento; sem ele, usa a **latest** (padrão do Dockerfile):
+A versão do agente é definida na hora do build. Os scripts `build.sh` aceitam a versão como argumento; sem ele, resolvem a **versão mais recente publicada no npm** consultando via um container efêmero de `node` (`podman run`), o que garante atualização e invalidação correta do cache quando uma nova versão é lançada. Só exige o Podman (sem npm no host); se a consulta falhar, cai para `latest`:
 
 ```bash
-./opencode/build.sh          # opencode-ai@latest
-./opencode/build.sh 2.0.0    # fixa uma versão específica no build
+./opencode/build.sh           # última versão publicada no npm
+./opencode/build.sh 2.0.0     # fixa uma versão específica no build
+./opencode-dotnet/build.sh 2.0.0
 ```
 
 ## Instalação recomendada (uso global)

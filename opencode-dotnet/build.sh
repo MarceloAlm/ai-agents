@@ -1,2 +1,6 @@
 #!/bin/bash
-podman build --build-arg OPENCODE_VERSION=1.18.28 -t opencode:dotnet ./opencode-dotnet
+VERSION="${1:-}"
+if [ -z "$VERSION" ]; then
+    VERSION=$(podman run --rm node:lts-slim npm view opencode-ai version 2>/dev/null || echo latest)
+fi
+podman build --build-arg OPENCODE_VERSION=$VERSION -t opencode:dotnet ./opencode-dotnet
