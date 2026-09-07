@@ -10,6 +10,7 @@ O objetivo principal deste projeto é o agente **opencode** (na variante base e 
 |-----------|-----------|
 | [`opencode/`](opencode/) | Container **opencode** base: agente de IA em CLI, sem LSP, com skill de ambiente do container |
 | [`opencode-dotnet/`](opencode-dotnet/) | Container **opencode** com **.NET SDK 10** e **LSP habilitado** (C#/F#), ferramentas de performance e análise estática |
+| [`opencode-ml/`](opencode-ml/) | Container **opencode** para **estudo de redes neurais**: .NET SDK 10 + LSP + runner de scripts `.csx` (dotnet-script), Python com numpy/matplotlib para gráficos e exemplos de referência em `/opt/ml` |
 | [`openclaude/`](openclaude/) | Container do agente **openclaude** (CLI) — requer assinatura de modelo |
 | [`ai-stack-allinone/`](ai-stack-allinone/) | **Opcional / em construção:** imagem com **Ollama** (modelos locais) + **LiteLLM** (proxy OpenAI-compatible com tool-calls) para rodar o agente offline, sem assinatura |
 
@@ -25,6 +26,7 @@ Os builds são feitos **a partir da raiz do projeto**, pois os scripts usam o di
 ```bash
 ./opencode/build.sh            # imagem "opencode"
 ./opencode-dotnet/build.sh     # imagem "opencode:dotnet"
+./opencode-ml/build.sh         # imagem "opencode:ml" (estudo de ML em C#)
 ./openclaude/build.sh          # imagem "openclaude"
 ```
 
@@ -47,6 +49,10 @@ sudo chmod +x /usr/local/bin/opencode
 # idem, se quiser também a variante com .NET
 sudo cp opencode-dotnet/opencode-dotnet.sh /usr/local/bin/opencode-dotnet
 sudo chmod +x /usr/local/bin/opencode-dotnet
+
+# idem, se quiser também a variante de estudo de ML em C#
+sudo cp opencode-ml/opencode-ml.sh /usr/local/bin/opencode-ml
+sudo chmod +x /usr/local/bin/opencode-ml
 ```
 
 ## Como usar
@@ -57,6 +63,7 @@ Entre na pasta do projeto que será trabalhado e rode o agente:
 cd /caminho/do/projeto
 opencode            # base
 opencode-dotnet     # com .NET SDK + LSP
+opencode-ml         # estudo de ML em C# (LSP + dotnet-script + gráficos Python)
 ```
 
 O container roda como usuário `node` (`--userns=keep-id`) e monta o projeto em `/workspace`, guardando dados do agente no volume `opencode-home`.
@@ -78,6 +85,6 @@ O primeiro boot baixa o modelo `frob/ornith-1.5:9b-coding-Q5_K_M` (~7,4 GB) e pu
 
 ## Como funciona
 
-- Os agentes rodam como usuário `node` (`--userns=keep-id`), com as pastas do host montadas em `/workspace` e dados persistentes do agente em volumes nomeados (`opencode-home`, `openclaude-home`).
+- Os agentes rodam como usuário `node` (`--userns=keep-id`), com as pastas do host montadas em `/workspace` e dados persistentes do agente em volumes nomeados (`opencode-home`, `openclaude-home`, `opencode-ml-home`).
 - As imagens incluem skill `container-ambiente` que informa ao agente as ferramentas disponíveis, as pastas persistentes (`/workspace`, `/home`) e as restrições do container (sem root, sem instalação de pacotes).
 - `opencode-dotnet` habilita LSP por padrão e permite `read`, `edit` e `bash` sem pedir permissão a cada operação.
