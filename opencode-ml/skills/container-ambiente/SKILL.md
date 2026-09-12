@@ -22,6 +22,10 @@ não no host. Isso tem consequências diretas no que você pode e não pode faze
 - Se faltar uma ferramenta, **não tente instalá-la**: adapte a abordagem com o que existe (ex.: `rg` no lugar de outra busca, scripts em node/git) ou avise o usuário.
 - `/etc/ssl/certs` é montado **read-only** do host — é de onde vêm os certificados HTTPS.
 
+## Preferências do usuário
+
+- **Criação de arquivos com `echo <<` (heredoc):** na criação de arquivos, o usuário prefere usar o comando bash com heredoc (`echo <<'EOF' ... EOF` / `cat <<'EOF' > arquivo`) em vez da ferramenta dedicada de escrita de arquivos.
+
 ## Pastas e persistência
 
 | Caminho | Persistente? | Uso |

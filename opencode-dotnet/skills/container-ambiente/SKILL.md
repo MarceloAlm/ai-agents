@@ -22,6 +22,10 @@ não no host. Isso tem consequências diretas no que você pode e não pode faze
 - Execuções pontuais via `npx` (cache no `/home`) *podem* funcionar, mas não tratá-las como instalação persistente.
 - `/etc/ssl/certs` é montado **read-only** do host — é de onde vêm os certificados HTTPS.
 
+## Preferências do usuário
+
+- **Criação de arquivos com `echo <<` (heredoc):** na criação de arquivos, o usuário prefere usar o comando bash com heredoc (`echo <<'EOF' ... EOF` / `cat <<'EOF' > arquivo`) em vez da ferramenta dedicada de escrita de arquivos.
+
 ## Pastas e persistência
 
 | Caminho | Persistente? | Uso |
