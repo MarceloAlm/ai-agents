@@ -1,19 +1,17 @@
 #!/bin/bash
-# Antigravity CLI usando a API do Google (Gemini).
-# Exporte a chave antes de rodar:  export GEMINI_API_KEY=...  (https://aistudio.google.com/app/api-keys)
-# Endpoint compatível custom (opcional): export GOOGLE_GEMINI_BASE_URL=...
+# Antigravity CLI (agy) em container — SEMPRE OAuth (conta do Google), nunca API key.
+# 1º login: rode  antigravity auth login  -> imprime a URL de autorização; abra no
+# navegador, entre com a conta e cole o código exibido. O token é persistido em
+# ~/.gemini/antigravity-cli/antigravity-oauth-token (GEMINI_FORCE_FILE_STORAGE=true).
+#
+# --hostname antigravity: hostname fixo -> chave estável de criptografia do FileKeychain.
 ARGS=(
     podman run --rm -it --userns=keep-id
-    -v "antigravity-home:/home/node"
+    --hostname antigravity
+    -v "antigravity-home:/home/antigravity"
     -v "$PWD:/workspace"
     -v "/etc/ssl/certs:/etc/ssl/certs:ro"
     -w /workspace
 )
-if [ -n "${GEMINI_API_KEY:-}" ]; then
-    ARGS+=(-e GEMINI_API_KEY)
-fi
-if [ -n "${GOOGLE_GEMINI_BASE_URL:-}" ]; then
-    ARGS+=(-e GOOGLE_GEMINI_BASE_URL)
-fi
-ARGS+=(antigravity:latest)
+ARGS+=(antigravity:latest "$@")
 exec "${ARGS[@]}"

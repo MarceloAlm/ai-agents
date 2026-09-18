@@ -1,2 +1,3 @@
 #!/bin/bash
-podman build -t antigravity ./antigravity
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+podman build -t antigravity "$DIR"

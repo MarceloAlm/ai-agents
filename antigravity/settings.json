@@ -1,0 +1,69 @@
+{
+  "altScreenMode": "always",
+  "model": "Gemini 3.8 Flash (Medium)",
+  "permissions": {
+    "allow": [
+      "command(agy)",
+      "command(cat)",
+      "command(curl)",
+      "command(df)",
+      "command(diff)",
+      "command(dig)",
+      "command(dos2unix)",
+      "command(dotnet)",
+      "command(dotnet *)",
+      "command(dotnet-counters)",
+      "command(dotnet-dump)",
+      "command(dotnet-trace)",
+      "command(du)",
+      "command(echo)",
+      "command(file)",
+      "command(find)",
+      "command(gawk)",
+      "command(git branch)",
+      "command(git diff)",
+      "command(git log)",
+      "command(git remote)",
+      "command(git show)",
+      "command(git status)",
+      "command(git tag)",
+      "command(git)",
+      "command(grep)",
+      "command(head)",
+      "command(jq)",
+      "command(less)",
+      "command(ls)",
+      "command(ping)",
+      "command(ps)",
+      "command(pwd)",
+      "command(rg)",
+      "command(stat)",
+      "command(tail)",
+      "command(top)",
+      "command(traceroute)",
+      "command(unzip)",
+      "command(uptime)",
+      "command(wc)",
+      "command(whereis)",
+      "command(which)",
+      "command(zcat)",
+      "command(zgrep)",
+      "command(zip)",
+      "command(zstd)",
+      "read_file(*)",
+      "read_url(*)"
+    ],
+    "ask": [
+      "write_file(*)"
+    ]
+  },
+  "statusLine": {
+    "type": "",
+    "command": "",
+    "enabled": false
+  },
+  "toolPermission": "always-proceed",
+  "trustedWorkspaces": [
+    "/workspace"
+  ]
+}
