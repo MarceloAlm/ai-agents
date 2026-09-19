@@ -2,8 +2,7 @@
 
 Containers Podman para uso de agentes de IA de forma **isolada e consistente**: como o agente roda dentro de uma imagem, não há diferenças de comportamento entre workstations — o agente enxerga sempre o mesmo ambiente, independente do host.
 
-Está disponível o agente **opencode** (na variante base e na variante com .NET). 
-O `openclaude` depende de uma assinatura de modelo. Também está disponível o CLI do Google **Antigravity** (`agy`, binário Go). A stack local Ollama + LiteLLM é **opcional** e ainda está em construção, precisa de um hardware dedicado para conseguir atender ao desempenho de tokens.
+Estão disponíveis containers para o **OpenCode** (na variante base e na variante com .NET SDK) e para o **Antigravity CLI** (`agy`, binário nativo Go com login OAuth via Google). A stack local com Ollama + LiteLLM é **opcional** e está em construção (requer hardware dedicado para atender ao throughput de tokens).
 
 ## Estrutura
 
@@ -11,9 +10,7 @@ O `openclaude` depende de uma assinatura de modelo. Também está disponível o 
 |-----------|-----------|
 | [`opencode/`](opencode/) | Container **opencode** base: agente de IA em CLI, sem LSP, com skill de ambiente do container |
 | [`opencode-dotnet/`](opencode-dotnet/) | Container **opencode** com **.NET SDK 10** e **LSP habilitado** (C#/F#), ferramentas de performance e análise estática |
-| [`opencode-ml/`](opencode-ml/) | Container **opencode** para **estudo de redes neurais**: .NET SDK 10 + LSP + runner de scripts `.csx` (dotnet-script), Python com numpy/matplotlib para gráficos e exemplos de referência em `/opt/ml` |
-| [`openclaude/`](openclaude/) | Container do agente **openclaude** (CLI) — requer assinatura de modelo |
-| [`antigravity/`](antigravity/) | Container do **Antigravity CLI** (`agy`, binário nativo **Go** — base `debian:bookworm-slim`) com **.NET 10 SDK**, ferramentas de diagnóstico de rede/logs e **login OAuth via conta Google** (fluxo URL + código) |
+| [`antigravity/`](antigravity/) | Container do **Antigravity CLI** (`agy`, binário nativo **Go** — base `debian:trixie-slim` / Debian 13) com **.NET 10 SDK**, linters (`shellcheck`, `sqlfluff`, `yq`, `roslynator`), diagnóstico de rede/logs e **login OAuth via conta Google** (Google AI Pro/Ultra) |
 | [`ai-stack-allinone/`](ai-stack-allinone/) | **Opcional / em construção:** imagem com **Ollama** (modelos locais) + **LiteLLM** (proxy OpenAI-compatible com tool-calls) para rodar o agente offline, sem assinatura |
 
 ## Requisitos
@@ -28,12 +25,10 @@ Os builds são feitos **a partir da raiz do projeto**, pois os scripts usam o di
 ```bash
 ./opencode/build.sh            # imagem "opencode"
 ./opencode-dotnet/build.sh     # imagem "opencode:dotnet"
-./opencode-ml/build.sh         # imagem "opencode:ml" (estudo de ML em C#)
-./openclaude/build.sh          # imagem "openclaude"
 ./antigravity/build.sh         # imagem "antigravity" (CLI agy, OAuth conta Google)
 ```
 
-A versão dos agentes npm (`opencode`) é definida na hora do build. Os scripts `build.sh` aceitam a versão como argumento; sem ele, resolvem a **versão mais recente publicada no npm** consultando via um container efêmero de `node` (`podman run`), o que garante atualização e invalidação correta do cache quando uma nova versão é lançada. Só exige o Podman (sem npm no host); se a consulta falhar, cai para `latest`. O `antigravity` instala sempre a última versão via script oficial de instalação:
+A versão dos agentes npm (`opencode`) é definida na hora do build. Os scripts `build.sh` aceitam a versão como argumento; sem ele, resolvem a **versão mais recente publicada no npm** consultando via um container efêmero de `node` (`podman run`), o que garante atualização e invalidação correta do cache quando uma nova versão é lançada. Só exige o Podman (sem npm no host); se a consulta falhar, cai para `latest`. O `antigravity` instala sempre a última versão oficial durante o build:
 
 ```bash
 ./opencode/build.sh           # última versão publicada no npm
@@ -49,13 +44,9 @@ Copie o script de execução para `/usr/local/bin` e torne-o executável. Como o
 sudo cp opencode/opencode.sh /usr/local/bin/opencode
 sudo chmod +x /usr/local/bin/opencode
 
-# idem, se quiser também a variante com .NET
+# idem, se quiser a variante com .NET SDK
 sudo cp opencode-dotnet/opencode-dotnet.sh /usr/local/bin/opencode-dotnet
 sudo chmod +x /usr/local/bin/opencode-dotnet
-
-# idem, se quiser também a variante de estudo de ML em C#
-sudo cp opencode-ml/opencode-ml.sh /usr/local/bin/opencode-ml
-sudo chmod +x /usr/local/bin/opencode-ml
 
 # idem, para o Antigravity CLI (agy) com login OAuth (conta do Google)
 sudo cp antigravity/agy.sh /usr/local/bin/agy
@@ -70,11 +61,10 @@ Entre na pasta do projeto que será trabalhado e rode o agente:
 cd /caminho/do/projeto
 opencode            # base
 opencode-dotnet     # com .NET SDK + LSP
-opencode-ml         # estudo de ML em C# (LSP + dotnet-script + gráficos Python)
 agy                 # Antigravity CLI (agy), login OAuth com conta do Google
 ```
 
-Cada container roda com `--userns=keep-id`, monta o projeto em `/workspace` e guarda os dados do agente no seu volume próprio (ex.: `opencode-home`, `antigravity-home`).
+Cada container roda mapeando o UID/GID do host (`--userns=keep-id:uid=1100,gid=1100`), monta o projeto em `/workspace` e guarda os dados do agente em volumes persistentes dedicados (`opencode-home` e `antigravity-home`).
 
 > Veja os guias específicos em [`opencode-dotnet/README.md`](opencode-dotnet/README.md) e [`antigravity/README.md`](antigravity/README.md) para detalhes de autenticação, ferramentas e permissões.
 
@@ -93,7 +83,11 @@ O primeiro boot baixa o modelo `frob/ornith-1.5:9b-coding-Q5_K_M` (~7,4 GB) e pu
 
 ## Como funciona
 
-- Os containers do opencode rodam como usuário `opencode` (`--userns=keep-id`; o Antigravity CLI (`agy`) usa o usuário `antigravity`), com as pastas do host montadas em `/workspace` e dados persistentes do agente em volumes nomeados (`opencode-home`, `openclaude-home`, `opencode-ml-home` em `/home/opencode`, e `antigravity-home` em `/home/antigravity`).
-- As imagens incluem skill `container-ambiente` que informa ao agente as ferramentas disponíveis, as pastas persistentes (`/workspace`, `/home`), a disponibilidade de `sudo` sem senha para instalações pontuais e efêmeras em tempo de execução, e a diretriz para sugerir a criação de novas variantes de container quando ferramentas adicionais forem necessárias de forma recorrente.
-- No container `antigravity` (`agy`), o entrypoint garante o login via OAuth com conta Google (removendo qualquer `modelProvider` residual) e pré-configura permissões de consulta (`read_file(*)`, `read_url(*)`, `command(git)`, `command(rg)`, `command(curl)`, `command(jq)` etc.) no `settings.json`. Isso concede autonomia ao agente para inspecionar o código, rodar buscas e consultar documentações externas na web sem pedir autorização a cada leitura.
-- `opencode-dotnet` habilita LSP por padrão e permite `read`, `edit` e `bash` sem pedir permissão a cada operação.
+- **Padronização de usuário e permissões:** os containers rodam com `--userns=keep-id:uid=1100,gid=1100` (usuário `opencode` nos containers OpenCode e `antigravity` no Antigravity CLI), com a pasta do host montada em `/workspace` e dados persistentes em volumes nomeados (`opencode-home` em `/home/opencode`, e `antigravity-home` em `/home/antigravity`).
+- **Antigravity CLI (`agy`):** usa `--hostname antigravity` para garantir chave criptográfica estável no `FileKeychain` para persistência do token OAuth da conta Google. O entrypoint garante permissões de consulta pré-autorizadas (`read_file`, `read_url`, `command(git)`, `command(rg)`, `command(curl)`, `command(jq)` etc.) no `settings.json`, concedendo autonomia para inspecionar código e documentações sem prompts repetitivos de autorização.
+- **OpenCode (.NET):** `opencode-dotnet` habilita LSP por padrão e pré-libera `read`, `edit` e `bash`.
+- **Skill de ambiente e sudo:** as imagens incluem a skill `container-ambiente`, informando ao agente as ferramentas disponíveis, persistência (`/workspace` e `/home`), escrita efêmera em `/tmp` e privilégio de `sudo` sem senha para instalações pontuais em tempo de execução (com recomendação de criar novas variantes caso ferramentas sejam recorrentes).
+- **Personalização de skills:**
+  - No **OpenCode**, crie skills em `~/.config/opencode/skills/<nome>/SKILL.md` (volume persistente) ou `.opencode/skills/<nome>/SKILL.md` (no repositório do projeto).
+  - No **Antigravity**, crie skills em `~/.gemini/config/skills/<nome>/SKILL.md` (volume persistente) ou `.agents/skills/<nome>/SKILL.md` (no repositório do projeto).
+  - Isso garante que especializações e regras personalizadas não sejam sobrescritas pela sincronização automática da skill `container-ambiente` na inicialização do container.
