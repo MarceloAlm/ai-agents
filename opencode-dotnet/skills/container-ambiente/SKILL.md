@@ -20,7 +20,7 @@ não no host. Isso tem consequências diretas no que você pode e não pode faze
 - **Não é possível instalar ferramentas/pacotes.** Sem `apt`/`apt-get`, sem `npm i -g`, sem `dotnet tool install`, sem qualquer instalação de sistema: você não tem root e a imagem é efêmera. Planeje o trabalho apenas com as ferramentas listadas na seção abaixo.
 - Se faltar uma ferramenta, **não tente instalá-la**: adapte a abordagem com o que existe (ex.: `rg` no lugar de outra busca, scripts em node/git) ou avise o usuário.
 - Execuções pontuais via `npx` (cache no `/home`) *podem* funcionar, mas não tratá-las como instalação persistente.
-- `/etc/ssl/certs` é montado **read-only** do host — é de onde vêm os certificados HTTPS.
+- `/etc/ssl/certs` vem do pacote `ca-certificates` **da própria imagem** — não é montado do host.
 
 ## Preferências do usuário
 

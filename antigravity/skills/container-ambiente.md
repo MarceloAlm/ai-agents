@@ -32,7 +32,7 @@ você pode e não pode fazer.
 
 - **Não é possível instalar ferramentas/pacotes.** Sem `apt`/`apt-get`, sem qualquer instalação de sistema: você não tem root e a imagem é efêmera. Planeje o trabalho apenas com as ferramentas listadas na seção abaixo.
 - **Sem acesso SSH a servidores/Git:** Não tente operações de rede via SSH (`git@...`). Trabalhe apenas com o workspace local e requisições HTTP/curl.
-- `/etc/ssl/certs` é montado **read-only** do host — é de onde vêm os certificados HTTPS.
+- `/etc/ssl/certs` vem do pacote `ca-certificates` **da própria imagem** — não é montado do host.
 
 ## Pastas e persistência
 

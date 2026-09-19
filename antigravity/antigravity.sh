@@ -10,7 +10,6 @@ ARGS=(
     --hostname antigravity
     -v "antigravity-home:/home/antigravity"
     -v "$PWD:/workspace"
-    -v "/etc/ssl/certs:/etc/ssl/certs:ro"
     -w /workspace
 )
 ARGS+=(antigravity:latest "$@")
