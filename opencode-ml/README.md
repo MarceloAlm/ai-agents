@@ -24,12 +24,16 @@ podman build --build-arg OPENCODE_VERSION=latest -t opencode:ml ./opencode-ml
 ```bash
 ./opencode-ml.sh
 # ou manualmente:
-podman run --rm -it --userns=keep-id \
-  -v "opencode-ml-home:/home/node" \
+podman run --rm -it --userns=keep-id:uid=1100,gid=1100 \
+  -v "opencode-ml-home:/home/opencode" \
   -v "$PWD:/workspace" \
   -w /workspace \
   opencode:ml
 ```
+
+> O agente roda como usuário **`opencode`** (uid/gid 1100). O
+> `--userns=keep-id:uid=1100,gid=1100` mapeia o usuário do host (uid 1000) para
+> o uid/gid 1100 do container, mantendo o host dono de `/workspace` e `/home`.
 
 > O volume `opencode-ml-home` é separado do `opencode-home` usado pelas outras
 > imagens, então credenciais/config do opencode não se misturam com os outros

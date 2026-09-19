@@ -1,6 +1,13 @@
 ---
 name: container-ambiente
-description: Descreve o ambiente onde o opencode roda dentro de um container isolado (imagens opencode e opencode:dotnet). Use para saber quais ferramentas existem na imagem, que /workspace e /home são as únicas pastas persistentes, que /tmp tem escrita livre mas não persiste, que há acesso à internet e ao projeto, que o usuário tem sudo para instalações pontuais efêmeras e como sugerir variantes de container para ferramentas recorrentes.
+description: >-
+  Descreve o ambiente onde o opencode roda dentro de um container isolado
+  (imagem opencode:dotnet). Use para saber quais ferramentas existem na imagem,
+  que /workspace e /home são as únicas pastas persistentes, que /tmp tem
+  escrita livre mas não persiste, que há acesso à internet e ao projeto, que o
+  usuário tem sudo para instalações pontuais efêmeras, que o LSP de C# fica
+  habilitado, e como personalizar preferências/skills sem perder atualizações
+  e como sugerir variantes de container para ferramentas recorrentes.
 ---
 
 # Ambiente de execução (container isolado)
@@ -10,67 +17,57 @@ não no host. Isso tem consequências diretas no que você pode e não pode faze
 
 ## Contexto
 
-- **Isolado do host:** não há acesso aos arquivos, processos ou serviços do host, exceto pelos caminhos montados listados abaixo.
-- **Acesso à internet:** disponível. Ferramentas de rede (`git`, `curl`, `wget`, `npx`, download de dependências de projeto...) funcionam normalmente.
-- **Projeto atual:** o diretório de trabalho é `/workspace`, um bind mount do projeto do usuário no host. É onde estão os arquivos do projeto com os quais você deve trabalhar.
-- **Usuário:** não-root (`node`, uid/gid 1000, `--userns=keep-id`), mas configurado com **`sudo` sem senha**.
-
-## Instalação de Ferramentas e Restrições
-
-- **Instalações em tempo de execução são efêmeras:** Você tem privilégios de `sudo` sem senha (`sudo apt-get update && sudo apt-get install -y <pacote>`, `sudo npm i -g <pacote>`, `dotnet tool install`). Use isso para suprir necessidades imediatas ou descartáveis durante a sessão de trabalho.
-- **Atenção: o container é efêmero (`--rm`).** Nada que for instalado no sistema raiz sobreviverá ao encerramento do container.
-- **Sugira novas variantes para ferramentas recorrentes:** Se você identificar que uma ferramenta, SDK, compilador ou conjunto de utilitários é fundamental para o projeto de forma contínua, **não dependa de reinstalações a cada sessão**. Proponha e ajude o usuário a criar uma **nova variante de container** dedicada no repositório (no mesmo formato das variantes `opencode:dotnet` e `opencode:ml`, criando pasta, `Dockerfile` e `build.sh`).
-- `/etc/ssl/certs` vem do pacote `ca-certificates` **da própria imagem** — não é montado do host.
-
-## Preferências do usuário
-
-- **Criação de arquivos com `echo <<` (heredoc):** na criação de arquivos, o usuário prefere usar o comando bash com heredoc (`echo <<'EOF' ... EOF` / `cat <<'EOF' > arquivo`) em vez da ferramenta dedicada de escrita de arquivos.
+- **Isolado do host:** sem acesso aos arquivos, processos ou serviços do host, exceto pelos caminhos montados abaixo.
+- **Acesso à internet:** disponível (`git`, `curl`, `wget`, `npx`, downloads de dependências funcionam normalmente).
+- **Projeto atual:** `/workspace` é o bind mount do projeto do usuário no host — é onde está o que importa.
+- **Usuário:** não-root (`opencode`, uid/gid 1100), mapeado para o uid/gid 1000 do host via `--userns=keep-id:uid=1100,gid=1100`, com **`sudo` sem senha**.
 
 ## Pastas e persistência
 
 | Caminho | Persistente? | Uso |
 |---|---|---|
-| `/workspace` | **Sim** | Projeto atual (bind mount do host). É onde vive o que importa. |
-| `/home` (= `/home/node`) | **Sim** | Volume persistente `opencode-home` (config do opencode, credenciais, histórico, cache npm). |
-| `/tmp` | **Não** | Escrita **sem restrições**, mas o conteúdo some quando o container encerra. |
+| `/workspace` | **Sim** | Projeto atual (bind mount do host). |
+| `/home` (= `/home/opencode`) | **Sim** | Volume `opencode-home`: config do opencode, credenciais, histórico, cache npm e **skills**. |
+| `/tmp` | **Não** | Escrita livre, mas o conteúdo some quando o container encerra. |
 
-Regra prática: o que precisar durar deve ir para `/workspace` ou `/home`; `/tmp` é para
-trabalho descartável (downloads, arquivos temporários, testes) e nunca deve ser tratado
-como dado importante persistente.
+Regra prática: o que precisar durar vai para `/workspace` ou `/home`; `/tmp` é descartável.
 
-## Ferramentas disponíveis
+## Ferramentas
 
-**Garantidas em todas as variantes da imagem:**
+- `node`/`npm`, `opencode`, `git`, `rg`, `bash`, `sudo`, `apt`, `curl`, `wget`, `jq`, `unzip`/`zip`, `tree`, `file`, `ca-certificates`.
+- **`.NET SDK 10`**, `dotnet-trace/counters/dump`, `roslynator`, `roslyn-language-server` (LSP), e respostas do LSP C# via built-in `csharp`.
 
-| Ferramenta | O que faz |
-|---|---|
-| `node` / `npm` | Runtime JS; scripts e ferramentas npm locais |
-| `opencode` | O próprio agente |
-| `git` | Controle de versão |
-| `rg` (ripgrep) | Busca textual rápida |
-| `sudo` | Execução como superusuário para instalações pontuais efêmeras |
-| `apt` / `apt-get` | Gerenciador de pacotes Debian para instalações em tempo de execução |
-| `bash` | Shell padrão para os comandos |
-| `ca-certificates` | Certificados HTTPS (read-only) |
+Consulte a [lista completa](references/ferramentas.md) antes de depender de uma
+ferramenta e confirme no momento com `command -v <nome>`.
 
-**Extras na variante `opencode:dotnet`:**
+## Instalação de Ferramentas e Restrições
 
-| Ferramenta | O que faz |
-|---|---|
-| `dotnet` (SDK 10) | Compilar/rodar/testar código C#/.NET |
-| `dotnet-trace` / `dotnet-counters` / `dotnet-dump` | Perfomance, contadores e dumps |
-| `roslynator` | Análise estática e refactorings de C# |
-| `roslyn-language-server` | Server LSP de C# (usado pelos built-ins `csharp` do opencode) |
-| `curl` / `wget` | Clientes HTTP/FTP |
-| `jq` | Processamento de JSON em pipelines |
-| `unzip` / `zip` | Compactação |
-| `tree` | Listar diretórios em árvore |
-| `file` | Detectar tipo de arquivo |
+- **Instalações em tempo de execução são efêmeras:** `sudo apt-get install -y <pacote>`, `sudo npm i -g <pacote>`, `dotnet tool install`. Não sobrevivem ao encerramento do container (`--rm`).
+- **Ferramentas recorrentes:** se algo for fundamental ao projeto de forma contínua, **não dependa de reinstalação a cada sessão** — proponha e ajude o usuário a criar uma **nova variante de container** no repositório (pasta, `Dockerfile` e `build.sh`, no formato das variantes `opencode`, `opencode:dotnet` e `opencode:ml`).
+- `/etc/ssl/certs` vem do pacote `ca-certificates` da própria imagem.
 
-**Diferença de comportamento entre variantes:**
+## LSP
 
-- `opencode:dotnet`: LSP habilitado por padrão via config gerenciada em `/etc/opencode/opencode.json` (que também libera `read`, `edit`, `bash` e `external_directory`).
-- `opencode` (base): sem LSP; valem as permissões padrão do opencode.
+- Habilitado por padrão (`/etc/opencode/opencode.json` com `"lsp": true`).
+- O built-in `csharp` do opencode inicia o `roslyn-language-server --stdio --autoLoadProjects` ao abrir `.cs`/`.csx` em projetos com `.sln`, `.slnx`, `.csproj` ou `global.json`.
+- Os servers são detectados pelo PATH (`command -v`) — aqui o `/dotnet-tools` está no PATH.
+- Mensagens `Permission denied` de cache MEF do Roslyn em stderr são **inofensivas** se o server responder ao `initialize`.
+- Para validar: `opencode debug skill`, `opencode debug config`, `opencode debug lsp document-symbols file:///caminho/arquivo.cs`. (O `debug lsp document-symbols`/`diagnostics` pode retornar vazio porque descarta a instância em <1s — não significa que o LSP está quebrado.)
 
-Se a lista real divergir daqui (ex.: nova versão da imagem), confirme no momento com
-`command -v <nome>` antes de depender da ferramenta.
+## Preferências do usuário
+
+Suas preferências pessoais vivem em um **arquivo separado**, fora do SKILL.md, e
+nunca são sobrescritas pelo entrypoint a cada boot:
+
+`~/.config/opencode/skills/container-ambiente/preferences.md`
+
+Leia esse arquivo antes de agir quando envolver preferências (heredoc, modelos,
+idioma, convenções). Edite-o para ajustar o comportamento sem alterar a skill.
+
+## Personalização de skills
+
+- A skill `container-ambiente` é **gerenciada**: o entrypoint sincroniza do repositório do projeto para `/home` (e daí para `/etc/opencode/skills`) a cada execução. **Não edite dentro de `container-ambiente/`** — alterações ali são movidas para `~/.config/opencode/skills-custom/` (nunca perdidas) e a versão oficial é reinstalada.
+- Para **skills próprias** (runbooks, regras de negócio, especializações):
+  - Global no usuário (persistido em `/home`): `~/.config/opencode/skills/<nome>/SKILL.md`
+  - Do projeto (persistido em `/workspace`): `.opencode/skills/<nome>/SKILL.md`
+  - Assim suas especializações ficam protegidas e o container continua recebendo as atualizações da skill base.

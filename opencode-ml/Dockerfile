@@ -1,13 +1,22 @@
 FROM node:lts-slim
 
+# A base node:lts-slim já traz o usuário/grupo "node" com uid/gid 1000
+# (necessário para o Node/npm). Para não conflitar, o usuário padrão
+# "opencode" é criado com uid/gid 1100, e os scripts de execução mapeiam no
+# podman com --userns=keep-id:uid=1100,gid=1100 (container 1100 -> host 1000),
+# mantendo o host dono de /workspace e /home/opencode.
+RUN mkdir -p /etc/sudoers.d && \
+    groupadd --gid 1100 opencode && \
+    useradd --uid 1100 --gid opencode --shell /bin/bash --create-home opencode && \
+    echo "opencode ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/opencode && \
+    chmod 0440 /etc/sudoers.d/opencode
+
 # Base + ferramentas de linha de comando + Python (numpy/matplotlib) para
 # gerar gráficos de curva de perda/acurácia durante o estudo de ML
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ripgrep git ca-certificates curl wget jq unzip zip tree file \
         python3 python3-numpy python3-matplotlib sudo && \
-    echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node && \
-    chmod 0440 /etc/sudoers.d/node && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # .NET SDK 10 (mesma base do opencode:dotnet)
@@ -27,10 +36,11 @@ RUN dotnet tool install --tool-path /dotnet-tools dotnet-trace \
     && dotnet tool install --tool-path /dotnet-tools roslyn-language-server --prerelease \
     # O pacote roslyn-language-server extrai os binários nativos com modo 744
     # (sem bit de execução), impedindo o lançamento do processo filho.
-    # Corrigir para 755.
+    # Corrigir para 755 e dar escrita do cache MEF ao usuário opencode.
     && find /dotnet-tools/.store/roslyn-language-server -type f \
        \( -name 'roslyn-language-server' -o -name 'Microsoft.CodeAnalysis.LanguageServer' \) \
        -exec chmod +x {} +
+RUN chown -R opencode:opencode /dotnet-tools
 ENV PATH="/dotnet-tools:${PATH}"
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1
@@ -42,11 +52,12 @@ COPY ml-reference /opt/ml
 # sem pedir permissão a cada operação + registro da skill de ambiente
 RUN mkdir -p /etc/opencode && \
     printf '{\n  "$schema": "https://opencode.ai/config.json",\n  "lsp": true,\n  "skills": { "paths": ["/etc/opencode/skills"] },\n  "permission": {\n    "edit": "allow",\n    "bash": "allow",\n    "read": "allow",\n    "external_directory": { "*": "allow" }\n  }\n}\n' > /etc/opencode/opencode.json
-COPY skills/container-ambiente/SKILL.md /etc/opencode/skills/container-ambiente/SKILL.md
+COPY skills/container-ambiente/ /etc/opencode/skills/container-ambiente/
 
 ARG OPENCODE_VERSION=latest
 RUN npm i -g opencode-ai@${OPENCODE_VERSION}
+RUN mkdir -p /workspace && chown opencode:opencode /workspace
 WORKDIR /workspace
-USER node
+USER opencode
 
 CMD ["opencode"]

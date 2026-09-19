@@ -93,7 +93,7 @@ O primeiro boot baixa o modelo `frob/ornith-1.5:9b-coding-Q5_K_M` (~7,4 GB) e pu
 
 ## Como funciona
 
-- Os agentes rodam como usuário `node` (`--userns=keep-id`; o Antigravity CLI usa o usuário `antigravity`), com as pastas do host montadas em `/workspace` e dados persistentes do agente em volumes nomeados (`opencode-home`, `openclaude-home`, `opencode-ml-home`, `antigravity-home`).
+- Os containers do opencode rodam como usuário `opencode` (`--userns=keep-id`; o Antigravity CLI usa o usuário `antigravity`), com as pastas do host montadas em `/workspace` e dados persistentes do agente em volumes nomeados (`opencode-home`, `openclaude-home`, `opencode-ml-home`, `antigravity-home` — montados em `/home/opencode`).
 - As imagens incluem skill `container-ambiente` que informa ao agente as ferramentas disponíveis, as pastas persistentes (`/workspace`, `/home`), a disponibilidade de `sudo` sem senha para instalações pontuais e efêmeras em tempo de execução, e a diretriz para sugerir a criação de novas variantes de container quando ferramentas adicionais forem necessárias de forma recorrente.
 - No `antigravity`, o entrypoint garante o login via OAuth com conta Google (removendo qualquer `modelProvider` residual) e pré-configura permissões de consulta (`read_file(*)`, `read_url(*)`, `command(git)`, `command(rg)`, `command(curl)`, `command(jq)` etc.) no `settings.json`. Isso concede autonomia ao agente para inspecionar o código, rodar buscas e consultar documentações externas na web sem pedir autorização a cada leitura.
 - `opencode-dotnet` habilita LSP por padrão e permite `read`, `edit` e `bash` sem pedir permissão a cada operação.

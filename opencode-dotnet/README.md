@@ -23,12 +23,17 @@ podman build -t opencode:dotnet ./opencode-dotnet
 ## Executar
 
 ```bash
-podman run --rm -it --userns=keep-id \
-  -v "opencode-home:/home/node" \
+podman run --rm -it --userns=keep-id:uid=1100,gid=1100 \
+  -v "opencode-home:/home/opencode" \
   -v "$PWD:/workspace" \
   -w /workspace \
   opencode:dotnet
 ```
+
+O agente roda como usuário **`opencode`** (uid/gid 1100) e o volume
+`opencode-home` é montado em `/home/opencode`. O `--userns=keep-id:uid=1100,gid=1100`
+mapeia o usuário do host (uid 1000) para o uid/gid 1100 do container, mantendo
+o host dono de `/workspace` e `/home`.
 
 ## Ferramentas
 
@@ -68,3 +73,43 @@ novas variantes de container para ferramentas recorrentes.
 - Como é config gerenciada, fica sempre ligado nesta imagem (não pode ser
   desligado pelo `opencode.json` do projeto). Para trabalhar sem LSP, use o
   container `opencode` base.
+- O cache MEF do Roslyn é gravado ao lado dos assemblies em `/dotnet-tools`
+  (que é `chown` para o usuário `opencode` no build), evitando erros de
+  `Permission denied` no log do LSP a cada inicialização.
+
+## Sincronização de skills (entrypoint)
+
+O container roda um `entrypoint` que, **a cada execução**, sincroniza os
+arquivos de `skills/` do projeto para o home do usuário:
+
+1. **Fonte:** `skills/` do repositório de containers quando ele está montado em
+   `/workspace` (ou `/workspace/skills`), senão as skills embutidas na imagem
+   (`/etc/opencode/skills`).
+2. **Destino persistente:** `~/.config/opencode/skills/`, controlado por um
+   manifest de hash. Arquivos que você **não alterou** são atualizados para a
+   nova versão do projeto; arquivos **personalizados** são movidos para
+   `~/.config/opencode/skills-custom/` (com timestamp — nada se perde) e a
+   versão oficial é reinstalada.
+3. **Estado efetivo:** o resultado é instalado (via `sudo`) em
+   `/etc/opencode/skills/`, que é o local com maior precedência de carregamento
+   no opencode.
+
+### Preferências pessoais
+
+Suas preferências ficam num **arquivo separado**, criado uma única vez e que
+nunca é sobrescrito:
+
+```bash
+~/.config/opencode/skills/container-ambiente/preferences.md
+```
+
+A skill `container-ambiente` instrui o agente a ler esse arquivo. Edite-o para
+ajustar o comportamento (comportamento heredoc na criação de arquivos, idioma,
+convenções) sem mexer na skill gerenciada.
+
+### Skills próprias
+
+Para registros e especializações do usuário, crie sempre uma skill em
+**diretório separado** — nunca dentro de `container-ambiente/`:
+`~/.config/opencode/skills/<nome>/SKILL.md` (global em `/home`) ou
+`.opencode/skills/<nome>/SKILL.md` (no projeto em `/workspace`).
