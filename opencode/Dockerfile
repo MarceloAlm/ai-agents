@@ -2,7 +2,9 @@ FROM node:lts-slim
 
 # Executa instalações do sistema como ROOT
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ripgrep git ca-certificates && \
+    apt-get install -y --no-install-recommends ripgrep git ca-certificates sudo && \
+    echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node && \
+    chmod 0440 /etc/sudoers.d/node && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* 
 

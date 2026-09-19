@@ -7,7 +7,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl jq git ripgrep ca-certificates file procps \
         tzdata dnsutils traceroute iputils-ping \
-        unzip zip dos2unix gawk less zstd && \
+        unzip zip dos2unix gawk less zstd sudo && \
     ln -snf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime && \
     echo "America/Sao_Paulo" > /etc/timezone && \
     apt-get clean && \
@@ -46,7 +46,9 @@ ENV SSH_TTY="/dev/pts/0"
 # Usuário antigravity (uid 1000): mantém --userns=keep-id e o volume
 # antigravity-home montado em /home/antigravity (debian slim não traz usuário).
 RUN groupadd --gid 1000 antigravity && \
-    useradd --uid 1000 --gid antigravity --shell /bin/bash --create-home antigravity
+    useradd --uid 1000 --gid antigravity --shell /bin/bash --create-home antigravity && \
+    echo "antigravity ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/antigravity && \
+    chmod 0440 /etc/sudoers.d/antigravity
 
 # Instala o CLI do Antigravity (binário nativo "agy", sempre a última versão).
 # Instalado no PATH do sistema (/usr/local/bin) de propósito: em runtime o volume

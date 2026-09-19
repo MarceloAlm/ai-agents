@@ -76,8 +76,9 @@ A imagem inclui a skill `container-ambiente` em `/etc/opencode/skills/`,
 registrada no config gerenciado (`skills.paths`). Ela informa ao opencode que
 roda num container isolado: ferramentas da imagem, exemplos em `/opt/ml`,
 pastas persistentes (`/workspace` e `/home`), escrita livre em `/tmp` (não
-persistente), acesso à internet e a impossibilidade de instalar pacotes/rodar
-como root.
+persistente), acesso à internet, privilégios de `sudo` sem senha para
+instalações pontuais efêmeras e a orientação para sugerir novas variantes de
+container para ferramentas recorrentes.
 
 ## LSP
 

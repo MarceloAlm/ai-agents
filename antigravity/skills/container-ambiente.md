@@ -1,6 +1,6 @@
 ---
 name: container-ambiente
-description: Descreve o ambiente onde o agente Antigravity (CLI agy) roda dentro de um container isolado (imagem antigravity). Use para saber quais ferramentas existem na imagem, que o agente tem liberdade total para fazer consultas e leituras (read_file, read_url, ferramentas de busca/inspeção), que /workspace e /home são as únicas pastas persistentes, que /tmp tem escrita livre mas não persiste, que há acesso à internet e ao projeto, e que não roda como root nem pode instalar pacotes.
+description: Descreve o ambiente onde o agente Antigravity (CLI agy) roda dentro de um container isolado (imagem antigravity). Use para saber quais ferramentas existem na imagem, que o agente tem liberdade total para fazer consultas e leituras, permissão de sudo para instalações pontuais efêmeras durante a sessão, que /workspace e /home são as únicas pastas persistentes, que /tmp tem escrita livre mas não persiste, e como sugerir criação de variantes da imagem quando ferramentas forem necessárias de forma recorrente.
 ---
 
 # Ambiente de execução (container isolado)
@@ -15,7 +15,7 @@ você pode e não pode fazer.
 - **Isolado do host e sem acesso a fontes externas via SSH:** Não há cliente SSH instalado nem permissão de acesso a fontes Git remotas privadas ou servidores via SSH. O código com o qual você trabalha é montado localmente em `/workspace`.
 - **Acesso à internet:** disponível para consultas web e requisições HTTP (`curl`) para obtenção de logs ou consultas de API.
 - **Projeto atual:** o diretório de trabalho é `/workspace`, um bind mount do projeto do usuário no host.
-- **Usuário:** não-root. O processo roda como `antigravity` (uid/gid 1000, `--userns=keep-id`).
+- **Usuário:** não-root (`antigravity`, uid/gid 1000, `--userns=keep-id`), mas configurado com **`sudo` sem senha**.
 
 ## Autonomia e Consultas
 
@@ -28,9 +28,11 @@ você pode e não pode fazer.
 - **1º login:** rode `agy auth login` (ou apenas `agy`). Em ambiente headless o `agy` usa o fluxo manual: imprime uma URL de autorização, você abre no navegador do host, autoriza e cola o código de volta no terminal.
 - **Persistência:** o token fica em `~/.gemini/antigravity-cli/antigravity-oauth-token` (arquivo no volume `antigravity-home`, via `GEMINI_FORCE_FILE_STORAGE=true`). Login feito uma vez vale para as próximas execuções; `agy -p "..."` (headless mode) também respeita a sessão já autenticada.
 
-## Restrições
+## Instalação de Ferramentas e Restrições
 
-- **Não é possível instalar ferramentas/pacotes.** Sem `apt`/`apt-get`, sem qualquer instalação de sistema: você não tem root e a imagem é efêmera. Planeje o trabalho apenas com as ferramentas listadas na seção abaixo.
+- **Instalações em tempo de execução são efêmeras:** Você tem privilégios de `sudo` sem senha (`sudo apt-get update && sudo apt-get install -y <pacote>`, etc.). Use isso para suprir necessidades imediatas ou descartáveis durante a sessão de trabalho.
+- **Atenção: o container é efêmero (`--rm`).** Nada que for instalado no sistema raiz sobreviverá ao encerramento do container.
+- **Sugira novas variantes para ferramentas recorrentes:** Se você identificar que uma ferramenta de diagnóstico, biblioteca, SDK ou utilitário adicional é necessário de forma contínua para o trabalho, **não dependa de reinstalações a cada sessão**. Proponha e ajude o usuário a criar uma **nova variante de container** dedicada no repositório (com `Dockerfile` e `build.sh` próprios, a exemplo do modelo de variantes do projeto).
 - **Sem acesso SSH a servidores/Git:** Não tente operações de rede via SSH (`git@...`). Trabalhe apenas com o workspace local e requisições HTTP/curl.
 - `/etc/ssl/certs` vem do pacote `ca-certificates` **da própria imagem** — não é montado do host.
 
@@ -51,6 +53,8 @@ como dado importante persistente.
 | Ferramenta | O que faz |
 |---|---|
 | `agy` | O próprio agente Antigravity CLI |
+| `sudo` | Execução como superusuário para instalações pontuais efêmeras durante a sessão |
+| `apt` / `apt-get` | Gerenciador de pacotes Debian (instalação de dependências em tempo de execução) |
 | `dotnet` (SDK 10) | Compilação, execução, testes e gerenciamento de projetos .NET 10 (C#/F#) |
 | `dotnet-dump` / `dotnet-trace` / `dotnet-counters` | Diagnóstico de processos, coleta de traces, dumps de memória e métricas de servidores .NET |
 | `git` | Controle de versão local no repositório montado em `/workspace` |

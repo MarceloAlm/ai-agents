@@ -33,7 +33,7 @@ else
     fi
 fi
 
-if [ ! -f "$SKILLS_DIR/container-ambiente.md" ]; then
+if [ -f /etc/antigravity/skills/container-ambiente.md ]; then
     cp /etc/antigravity/skills/container-ambiente.md "$SKILLS_DIR/container-ambiente.md"
 fi
 

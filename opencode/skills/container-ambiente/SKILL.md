@@ -1,6 +1,6 @@
 ---
 name: container-ambiente
-description: Descreve o ambiente onde o opencode roda dentro de um container isolado (imagens opencode e opencode:dotnet). Use para saber quais ferramentas existem na imagem, que /workspace e /home são as únicas pastas persistentes, que /tmp tem escrita livre mas não persiste, que há acesso à internet e ao projeto, e que não roda como root nem pode instalar pacotes. Consultar antes de assumir que há ferramentas, tentar instalar dependências ou gravar arquivos fora de /workspace e /home.
+description: Descreve o ambiente onde o opencode roda dentro de um container isolado (imagens opencode e opencode:dotnet). Use para saber quais ferramentas existem na imagem, que /workspace e /home são as únicas pastas persistentes, que /tmp tem escrita livre mas não persiste, que há acesso à internet e ao projeto, que o usuário tem sudo para instalações pontuais efêmeras e como sugerir variantes de container para ferramentas recorrentes.
 ---
 
 # Ambiente de execução (container isolado)
@@ -13,13 +13,13 @@ não no host. Isso tem consequências diretas no que você pode e não pode faze
 - **Isolado do host:** não há acesso aos arquivos, processos ou serviços do host, exceto pelos caminhos montados listados abaixo.
 - **Acesso à internet:** disponível. Ferramentas de rede (`git`, `curl`, `wget`, `npx`, download de dependências de projeto...) funcionam normalmente.
 - **Projeto atual:** o diretório de trabalho é `/workspace`, um bind mount do projeto do usuário no host. É onde estão os arquivos do projeto com os quais você deve trabalhar.
-- **Usuário:** não-root. O processo roda como `node` (uid/gid 1000, `--userns=keep-id`).
+- **Usuário:** não-root (`node`, uid/gid 1000, `--userns=keep-id`), mas configurado com **`sudo` sem senha**.
 
-## Restrições
+## Instalação de Ferramentas e Restrições
 
-- **Não é possível instalar ferramentas/pacotes.** Sem `apt`/`apt-get`, sem `npm i -g`, sem `dotnet tool install`, sem qualquer instalação de sistema: você não tem root e a imagem é efêmera. Planeje o trabalho apenas com as ferramentas listadas na seção abaixo.
-- Se faltar uma ferramenta, **não tente instalá-la**: adapte a abordagem com o que existe (ex.: `rg` no lugar de outra busca, scripts em node/git) ou avise o usuário.
-- Execuções pontuais via `npx` (cache no `/home`) *podem* funcionar, mas não tratá-las como instalação persistente.
+- **Instalações em tempo de execução são efêmeras:** Você tem privilégios de `sudo` sem senha (`sudo apt-get update && sudo apt-get install -y <pacote>`, `sudo npm i -g <pacote>`). Use isso para suprir necessidades imediatas ou descartáveis durante a sessão de trabalho.
+- **Atenção: o container é efêmero (`--rm`).** Nada que for instalado no sistema raiz sobreviverá ao encerramento do container.
+- **Sugira novas variantes para ferramentas recorrentes:** Se você identificar que uma ferramenta, SDK, compilador ou conjunto de utilitários é fundamental para o projeto de forma contínua, **não dependa de reinstalações a cada sessão**. Proponha e ajude o usuário a criar uma **nova variante de container** dedicada no repositório (no mesmo formato das variantes `opencode:dotnet` e `opencode:ml`, criando pasta, `Dockerfile` e `build.sh`).
 - `/etc/ssl/certs` vem do pacote `ca-certificates` **da própria imagem** — não é montado do host.
 
 ## Preferências do usuário
@@ -48,6 +48,8 @@ como dado importante persistente.
 | `opencode` | O próprio agente |
 | `git` | Controle de versão |
 | `rg` (ripgrep) | Busca textual rápida |
+| `sudo` | Execução como superusuário para instalações pontuais efêmeras |
+| `apt` / `apt-get` | Gerenciador de pacotes Debian para instalações em tempo de execução |
 | `bash` | Shell padrão para os comandos |
 | `ca-certificates` | Certificados HTTPS (read-only) |
 

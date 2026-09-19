@@ -5,7 +5,9 @@ FROM node:lts-slim
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ripgrep git ca-certificates curl wget jq unzip zip tree file \
-        python3 python3-numpy python3-matplotlib && \
+        python3 python3-numpy python3-matplotlib sudo && \
+    echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node && \
+    chmod 0440 /etc/sudoers.d/node && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # .NET SDK 10 (mesma base do opencode:dotnet)
