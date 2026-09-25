@@ -26,6 +26,7 @@ Os builds são feitos **a partir da raiz do projeto**, pois os scripts usam o di
 ./opencode/build.sh            # imagem "opencode"
 ./opencode-dotnet/build.sh     # imagem "opencode:dotnet"
 ./antigravity/build.sh         # imagem "antigravity" (CLI agy, OAuth conta Google)
+./antigravity/build-sound.sh   # imagem "antigravity:sound" (com suporte a microfone e fala)
 ```
 
 A versão dos agentes npm (`opencode`) é definida na hora do build. Os scripts `build.sh` aceitam a versão como argumento; sem ele, resolvem a **versão mais recente publicada no npm** consultando via um container efêmero de `node` (`podman run`), o que garante atualização e invalidação correta do cache quando uma nova versão é lançada. Só exige o Podman (sem npm no host); se a consulta falhar, cai para `latest`. O `antigravity` instala sempre a última versão oficial durante o build:
@@ -34,6 +35,7 @@ A versão dos agentes npm (`opencode`) é definida na hora do build. Os scripts 
 ./opencode/build.sh           # última versão publicada no npm
 ./opencode/build.sh 1.18.29   # fixa uma versão específica no build
 ./opencode-dotnet/build.sh 1.18.28
+./antigravity/build.sh sound  # cria imagem antigravity:sound
 ```
 
 ## Instalação recomendada (uso global)
@@ -51,6 +53,10 @@ sudo chmod +x /usr/local/bin/opencode-dotnet
 # idem, para o Antigravity CLI (agy) com login OAuth (conta do Google)
 sudo cp antigravity/agy.sh /usr/local/bin/agy
 sudo chmod +x /usr/local/bin/agy
+
+# idem, para a versão do Antigravity com microfone ativado (:sound, comandos /voice e F5)
+sudo cp antigravity/agy-sound.sh /usr/local/bin/agy-sound
+sudo chmod +x /usr/local/bin/agy-sound
 ```
 
 ## Como usar
@@ -62,6 +68,7 @@ cd /caminho/do/projeto
 opencode            # base
 opencode-dotnet     # com .NET SDK + LSP
 agy                 # Antigravity CLI (agy), login OAuth com conta do Google
+agy-sound           # Antigravity com microfone ativado (gravação e reprodução de som, /voice e F5)
 ```
 
 Cada container roda mapeando o UID/GID do host (`--userns=keep-id:uid=1100,gid=1100`), monta o projeto em `/workspace` e guarda os dados do agente em volumes persistentes dedicados (`opencode-home` e `antigravity-home`).

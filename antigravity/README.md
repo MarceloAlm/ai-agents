@@ -11,16 +11,23 @@ O container vem pré-configurado com permissões para consultas autônomas de c�
 A partir da raiz do repositório:
 
 ```bash
+# Imagem base
 ./antigravity/build.sh
+
+# Imagem com suporte a microfone e fala (:sound)
+./antigravity/build-sound.sh
+# ou
+./antigravity/build.sh sound
 ```
 
 Ou dentro do próprio diretório:
 
 ```bash
 cd antigravity
-./build.sh
+./build.sh                     # imagem antigravity:latest
+./build-sound.sh               # imagem antigravity:sound
 # ou
-podman build -t antigravity .
+podman build -t antigravity:sound -f Dockerfile.sound .
 ```
 
 A imagem sempre baixa a versão mais recente oficial do executável `agy` durante o build.
@@ -29,13 +36,18 @@ A imagem sempre baixa a versão mais recente oficial do executável `agy` durant
 
 ## Instalação e Execução
 
-### 1. Instalação recomendada no host (comando global `agy`)
+### 1. Instalação recomendada no host (comandos globais `agy` e `agy-sound`)
 
-Copie o script wrapper para `/usr/local/bin`:
+Copie os scripts wrappers para `/usr/local/bin`:
 
 ```bash
+# Versão padrão
 sudo cp antigravity/agy.sh /usr/local/bin/agy
 sudo chmod +x /usr/local/bin/agy
+
+# Versão com suporte a microfone e fala (:sound)
+sudo cp antigravity/agy-sound.sh /usr/local/bin/agy-sound
+sudo chmod +x /usr/local/bin/agy-sound
 ```
 
 ### 2. Executando em um projeto
@@ -44,21 +56,46 @@ Basta entrar na pasta do seu projeto e executar:
 
 ```bash
 cd /caminho/do/projeto
+
+# Versão padrão:
 agy
+
+# Versão com microfone ativado:
+agy-sound
 ```
 
 Ou diretamente via `podman`:
 
 ```bash
+# Versão padrão:
 podman run --rm -it --userns=keep-id:uid=1100,gid=1100 \
   --hostname antigravity \
   -v "antigravity-home:/home/antigravity" \
   -v "$PWD:/workspace" \
   -w /workspace \
   antigravity:latest "$@"
+
+# Versão com som e microfone:
+podman run --rm -it --userns=keep-id:uid=1100,gid=1100 \
+  --hostname antigravity \
+  --device /dev/snd --group-add audio \
+  -v "${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native:ro" \
+  -e "PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native" \
+  -v "antigravity-home:/home/antigravity" \
+  -v "$PWD:/workspace" \
+  -w /workspace \
+  antigravity:sound "$@"
 ```
 
 > **Nota sobre `--hostname antigravity`**: O hostname fixo garante uma chave estável de criptografia para o `FileKeychain`, permitindo que o token OAuth seja descriptografado corretamente entre recriações do container.
+
+### 3. Usando funções de voz e fala no CLI (`/voice` ou F5)
+
+Na versão `antigravity:sound` (executada via `agy-sound`), as funções de áudio, gravação pelo microfone e reprodução de fala estão habilitadas:
+
+- Pressione **F5** ou digite o comando de barra `/voice` no terminal do `agy` para iniciar/pausar a gravação pelo microfone.
+- O áudio capturado é transcrito em tempo real diretamente na caixa de entrada de prompt do agente.
+- O wrapper `agy-sound.sh` detecta e repassa automaticamente os dispositivos ALSA (`/dev/snd`) e os sockets de áudio do PulseAudio / PipeWire do host para o container sem necessidade de configurações manuais adicionais.
 
 ---
 
@@ -109,6 +146,7 @@ Nas próximas execuções, o login ocorre silenciosamente.
 | `dig` / `traceroute` / `ping` | Diagnóstico de rede e resolução DNS |
 | `git`, `curl`, `jq`, `ripgrep` (`rg`), `gawk`, `sed` | Manipulação de arquivos, chamadas HTTP e análise de logs |
 | `dos2unix`, `zstd`, `zcat`, `zgrep`, `file`, `procps` | Normalização de quebras de linha e inspeção de logs compactados |
+| `arecord` / `parec` / `pw-record` | Captura de microfone e gravação de áudio (variante `:sound`, comandos `/voice` e F5) |
 | `sudo` | Acesso superusuário sem senha para instalações pontuais efêmeras via `apt-get` |
 
 ---

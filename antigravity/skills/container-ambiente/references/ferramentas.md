@@ -29,6 +29,7 @@
 | `dig` | Consulta DNS e diagnóstico de resolução de nomes (**preferido** sobre `nslookup`) |
 | `nslookup` | Consulta DNS simples (disponível, mas prefira `dig` para diagnósticos detalhados) |
 | `traceroute` / `ping` | Rastreamento de rotas de rede e verificação de latência |
+| `arecord` / `parec` / `pw-record` | Captura de microfone e gravação de áudio (variante `:sound`, suporte ao comando `/voice` e F5) |
 | `bash` | Shell padrão |
 | `ca-certificates` | Certificados HTTPS |
 
