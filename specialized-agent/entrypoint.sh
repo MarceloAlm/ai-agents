@@ -32,6 +32,12 @@ if ! ollama show "$MODEL_NAME" >/dev/null 2>&1; then
     ollama pull "$MODEL_NAME"
 fi
 
+# Instala dependências Python adicionais se houver requirements.txt
+if [ -f "/app/requirements.txt" ]; then
+    echo "[Boot] Instalando dependências em /app/requirements.txt..."
+    pip3 install --no-cache-dir --break-system-packages -r /app/requirements.txt 2>/dev/null || pip3 install --no-cache-dir -r /app/requirements.txt || true
+fi
+
 # Executa o processo do agente especializado
 python3 /app/agent.py "$@"
 EXIT_CODE=$?

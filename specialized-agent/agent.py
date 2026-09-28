@@ -12,12 +12,15 @@ import importlib.util
 import json
 import os
 import re
+import smtplib
+import ssl
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime
+from email.message import EmailMessage
 
 # Configuração do Ollama
 raw_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -81,10 +84,16 @@ def find_skill_file(folder_path):
     # 2. Busca recursiva em subpastas skills/
     skills_sub = os.path.join(folder_path, "skills")
     if os.path.isdir(skills_sub):
-        candidates = glob.glob(os.path.join(skills_sub, "**", "SKILL.md"), recursive=True)
+        candidates = sorted(glob.glob(os.path.join(skills_sub, "**", "SKILL.md"), recursive=True))
         base_name = os.path.basename(folder_path).lower()
+        # Primeiro tenta correspondência exata do nome da pasta da skill
         for c in candidates:
-            if base_name in c.lower():
+            if os.path.basename(os.path.dirname(c)).lower() == base_name:
+                return c
+        # Depois tenta correspondência no caminho relativo dentro de skills/
+        for c in candidates:
+            rel = os.path.relpath(c, skills_sub).lower()
+            if base_name in rel:
                 return c
         if candidates:
             return candidates[0]
@@ -141,7 +150,67 @@ def load_module_from_file(module_name, file_path):
     return module
 
 
-def query_llm(model, system_prompt, user_prompt):
+def send_email_report(subject, body, to_addrs=None, from_addr=None, smtp_host=None, smtp_port=None, smtp_user=None, smtp_pass=None, use_tls=None, use_ssl=None):
+    """
+    Envia parecer e relatório consolidado por e-mail via SMTP.
+    Utiliza variáveis de ambiente como fallback caso os argumentos não sejam fornecidos.
+    """
+    to_addrs = to_addrs or os.environ.get("EMAIL_TO", "")
+    if not to_addrs:
+        print("\033[1;33m[E-mail]\033[0m Nenhum destinatário informado (--email-to ou EMAIL_TO). Disparo cancelado.")
+        return False
+
+    from_addr = from_addr or os.environ.get("EMAIL_FROM", "specialized-agent@local.domain")
+    host = smtp_host or os.environ.get("SMTP_HOST", "localhost")
+    port_str = smtp_port or os.environ.get("SMTP_PORT", "")
+    if port_str:
+        port = int(port_str)
+    else:
+        port = 587 if host != "localhost" else 25
+
+    user = smtp_user or os.environ.get("SMTP_USER", "")
+    password = smtp_pass or os.environ.get("SMTP_PASSWORD", "")
+
+    if use_ssl is None:
+        use_ssl = os.environ.get("SMTP_SSL", "0").lower() in ("1", "true", "yes") or port == 465
+    if use_tls is None:
+        use_tls = os.environ.get("SMTP_TLS", "1" if port == 587 else "0").lower() in ("1", "true", "yes")
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+
+    if isinstance(to_addrs, str):
+        recipients = [addr.strip() for addr in to_addrs.split(",") if addr.strip()]
+    else:
+        recipients = list(to_addrs)
+    msg["To"] = ", ".join(recipients)
+    msg.set_content(body)
+
+    print(f"\033[1;34m[E-mail]\033[0m Conectando a {host}:{port} para envio a {recipients}...")
+    try:
+        if use_ssl:
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL(host, port, context=ctx, timeout=15) as server:
+                if user and password:
+                    server.login(user, password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                if use_tls:
+                    ctx = ssl.create_default_context()
+                    server.starttls(context=ctx)
+                if user and password:
+                    server.login(user, password)
+                server.send_message(msg)
+        print(f"\033[1;32m[E-mail]\033[0m Relatório enviado com sucesso para: {', '.join(recipients)}")
+        return True
+    except Exception as e:
+        print(f"\033[1;31m[E-mail Erro]\033[0m Falha ao enviar e-mail: {e}", file=sys.stderr)
+        return False
+
+
+def query_llm(model, system_prompt, user_prompt, num_ctx=8192):
     """Envia requisição para inferência neural no Ollama local com streaming."""
     payload = {
         "model": model,
@@ -152,6 +221,7 @@ def query_llm(model, system_prompt, user_prompt):
             "temperature": 0.25,
             "repeat_penalty": 1.15,
             "num_predict": 3072,
+            "num_ctx": num_ctx,
         },
     }
 
@@ -225,7 +295,43 @@ def main():
         default=15,
         help="Quantidade máxima de alvos a processar no modo 'all'"
     )
+    parser.add_argument(
+        "--num-ctx",
+        type=int,
+        default=int(os.environ.get("OLLAMA_NUM_CTX", "8192")),
+        help="Janela de contexto no Ollama em tokens (padrão: 8192)"
+    )
+    parser.add_argument(
+        "--send-email",
+        action="store_true",
+        default=os.environ.get("SEND_EMAIL", "0").lower() in ("1", "true", "yes"),
+        help="Dispara relatório e parecer consolidado por e-mail após a execução"
+    )
+    parser.add_argument(
+        "--email-to",
+        default=os.environ.get("EMAIL_TO", ""),
+        help="Destinatário(s) do e-mail (separados por vírgula)"
+    )
+    parser.add_argument(
+        "--email-subject",
+        default=os.environ.get("EMAIL_SUBJECT", ""),
+        help="Assunto personalizado para o e-mail"
+    )
+    parser.add_argument(
+        "--compact-context",
+        action="store_true",
+        default=True,
+        help="Compacta o contexto por alvo mantendo apenas o essencial para a tarefa (padrão: ativo)"
+    )
+    parser.add_argument(
+        "--full-context",
+        action="store_true",
+        default=False,
+        help="Desativa compactação e injeta todas as bases de conhecimento em todos os alvos"
+    )
     args = parser.parse_args()
+    if args.full_context:
+        args.compact_context = False
 
     # 1. Descoberta de pastas de trabalho disponíveis
     available_works = discover_work_folders(BASE_DIR)
@@ -295,6 +401,19 @@ def main():
     if work_dir not in sys.path:
         sys.path.insert(0, work_dir)
 
+    # Se a pasta de trabalho contiver requirements.txt, garante instalação de dependências locais
+    work_reqs = os.path.join(work_dir, "requirements.txt")
+    if os.path.isfile(work_reqs):
+        try:
+            print(f"\033[1;34m[Dependências]\033[0m Verificando requisitos de '{work_info['name']}'...")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--break-system-packages", "-r", work_reqs],
+                capture_output=True,
+                check=False,
+            )
+        except Exception:
+            pass
+
     # Carregar Skill específica e Bases de Conhecimento
     work_skill_text = read_file_safe(work_skill_file)
     knowledge_docs = []
@@ -302,6 +421,15 @@ def main():
     if os.path.isdir(knowledge_dir):
         for k_file in sorted(glob.glob(os.path.join(knowledge_dir, "*.md"))):
             knowledge_docs.append(f"--- Documento: {os.path.basename(k_file)} ---\n" + read_file_safe(k_file))
+
+    # Carregar Skills complementares da subpasta (ex: skills/seguranca-agentica)
+    skills_dir = os.path.join(work_dir, "skills")
+    if os.path.isdir(skills_dir):
+        for s_file in sorted(glob.glob(os.path.join(skills_dir, "**", "SKILL.md"), recursive=True)):
+            if os.path.abspath(s_file) != os.path.abspath(work_skill_file):
+                skill_folder_name = os.path.basename(os.path.dirname(s_file))
+                knowledge_docs.append(f"--- Skill Complementar ({skill_folder_name}) ---\n" + read_file_safe(s_file))
+
     knowledge_combined = "\n\n".join(knowledge_docs)
 
     # 4. Inicialização do Runner do Trabalho
@@ -321,6 +449,7 @@ def main():
     print(f"\033[1;33m[Trabalho Ativo]\033[0m     {work_info['name']} ({work_dir})")
     print(f"\033[1;33m[Skill Especializada]\033[0m{work_skill_file}")
     print(f"\033[1;33m[Janela Temporal]\033[0m    {args.timeframe}")
+    print(f"\033[1;33m[Janela Contexto]\033[0m    {args.num_ctx} tokens")
 
     # Verificar conectividade via runner se disponível
     targets = []
@@ -358,10 +487,11 @@ def main():
         "1. Linguagem técnica, concisa e estritamente formal. Sem emojis ou saudações informais.\n"
         "2. Formatação em Markdown estruturado conforme exigido pela especificação da Skill.\n"
         "3. Proteja todas as variáveis, comandos, parâmetros e expressões regulares com crases.\n"
-        "4. Governança: Nenhuma alteração remota ou Merge Request será aplicado automaticamente. Apresente o parecer técnico estruturado para revisão humana.\n"
+        "4. GOVERNANÇA E CONTROLE (FASE DE TESTES): O agente opera atualmente em regime estrito de testes e validação de maturidade. Nenhuma alteração remota, mutação em infraestrutura ou Merge Request/commit será executado automaticamente nesta fase. Toda ação corretiva proposta deve ser entregue em formato de parecer técnico estruturado para validação humana. ESTA RESTRIÇÃO DE MUTAÇÃO DIRETA SERÁ REMOVIDA ASSIM QUE O PROCESSO SE MOSTRAR TOTALMENTE CONFIÁVEL E ESTÁVEL.\n"
     )
 
     target_metrics = []
+    target_reports = []
 
     for idx, (target_name, count) in enumerate(targets, 1):
         target_start = time.perf_counter()
@@ -382,16 +512,39 @@ def main():
         else:
             user_prompt = f"Realize o diagnóstico do alvo '{target_name}' conforme as diretrizes da sua skill."
 
+        # Montar system prompt (compacto focado no alvo ou completo geral)
+        if args.compact_context and runner_mod and hasattr(runner_mod, "build_system_prompt"):
+            target_system_prompt = runner_mod.build_system_prompt(
+                target_name, work_skill_text, knowledge_combined
+            )
+        else:
+            target_system_prompt = system_prompt
+
         print(f"\033[1;34m[Raciocínio Neural]\033[0m Submetendo dossiê de '{target_name}' ao {args.model}...\n")
-        report_text, meta = query_llm(args.model, system_prompt, user_prompt)
+        report_text, meta = query_llm(args.model, target_system_prompt, user_prompt, num_ctx=args.num_ctx)
 
-        target_duration = time.perf_counter() - target_start
-
-        # Métricas do turno
         p_tokens = meta.get("prompt_eval_count", 0)
         p_dur_ns = meta.get("prompt_eval_duration", 0)
         e_tokens = meta.get("eval_count", 0)
         e_dur_ns = meta.get("eval_duration", 0)
+
+        # Gancho genérico de avaliação e auto-correção da recomendação em /tmp
+        if runner_mod and hasattr(runner_mod, "evaluate_and_refine"):
+            def query_refine_fn(prompt):
+                return query_llm(args.model, target_system_prompt, prompt, num_ctx=args.num_ctx)
+
+            report_text, extra_metrics = runner_mod.evaluate_and_refine(
+                target_name, report_text, query_refine_fn
+            )
+            for em in extra_metrics:
+                p_tokens += em.get("prompt_tokens", 0)
+                e_tokens += em.get("eval_tokens", 0)
+
+        target_reports.append((target_name, report_text))
+
+        target_duration = time.perf_counter() - target_start
+
+        # Métricas do turno
         p_speed = (p_tokens / (p_dur_ns / 1e9)) if p_dur_ns > 0 else 0.0
         e_speed = (e_tokens / (e_dur_ns / 1e9)) if e_dur_ns > 0 else 0.0
 
@@ -433,8 +586,46 @@ def main():
     print(f"\033[1;33mTokens Globais de Entrada:\033[0m  {total_prompt_tokens} tokens")
     print(f"\033[1;33mTokens Globais Gerados:\033[0m    {total_eval_tokens} tokens")
     print(f"\033[1;33mTotal de Tokens no Turno:\033[0m  {total_all_tokens} tokens")
-    print("\033[1;36m==================================================================\033[0m")
     print(f"\033[1;32m[Agente]\033[0m Execução do trabalho '{work_info['name']}' concluída com sucesso.")
+
+    # 5. Disparo de E-mail com Relatório Consolidado (se configurado)
+    if args.send_email or args.email_to:
+        print("\n\033[1;34m[E-mail]\033[0m Preparando envio do relatório consolidado...")
+        subject = args.email_subject or f"[Specialized Agent] Parecer Técnico: {work_info['name']} ({global_end_dt.strftime('%d/%m/%Y %H:%M')})"
+        email_lines = [
+            "SPECIALIZED AGENT - RELATÓRIO TÉCNICO CONSOLIDADO",
+            "=" * 65,
+            f"Trabalho Executado:   {work_info['name']}",
+            f"Início:               {global_start_dt.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Conclusão:            {global_end_dt.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Tempo Total:          {global_total_time:.2f}s ({global_total_time / 60:.1f} min)",
+            f"Modelo Neural:        {args.model}",
+            f"Hardware / GPU:       {gpu_info}",
+            f"Janela de Contexto:   {args.num_ctx} tokens",
+            f"Alvos Processados:    {len(target_metrics)}",
+            f"Tokens Prompt:        {total_prompt_tokens}",
+            f"Tokens Geração:       {total_eval_tokens}",
+            f"Total de Tokens:      {total_all_tokens}",
+            "=" * 65,
+            "",
+            "RESUMO DA TELEMETRIA POR ALVO:",
+            "-" * 65,
+        ]
+        for m in target_metrics:
+            email_lines.append(
+                f"• {m['target']:<28} | Tempo: {m['duration']:>5.1f}s | Prompt: {m['prompt_tokens']:>5} tok | Geração: {m['eval_tokens']:>5} tok ({m['eval_speed']:>5.1f} t/s)"
+            )
+        email_lines.append("-" * 65)
+        email_lines.append("")
+        email_lines.append("PARECERES TÉCNICOS DETALHADOS POR ALVO:")
+        email_lines.append("=" * 65)
+        for t_name, rep_txt in target_reports:
+            email_lines.append(f"\n[ALVO: {t_name}]\n")
+            email_lines.append(rep_txt)
+            email_lines.append("\n" + "-" * 65)
+
+        email_body = "\n".join(email_lines)
+        send_email_report(subject, email_body, to_addrs=args.email_to)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ specialized-agent/
     ├── SKILL.md (ou skills/)  # Diretrizes técnicas da especialização
     ├── knowledge/             # Documentações e bases de conhecimento de suporte (*.md)
     ├── .env                   # (Opcional) Credenciais e parâmetros de ambiente
+    ├── requirements.txt       # (Opcional) Dependências Python específicas do trabalho
     ├── runner.py              # (Opcional) Coletor de fatos, conectividade e dossiês de auditoria
     ├── scripts/               # (Opcional) Utilitários e scripts CLI
     └── bin/                   # (Opcional) Binários e atalhos executáveis
@@ -58,16 +59,21 @@ specialized-agent/
    - Valida conectividade via `check_connection()` e recupera alvos via `collect_targets()`.
 
 4. **Inferência Neural Acelerada por GPU:**
-   - Submete os dados consolidados ao modelo local no Ollama com controle de contexto e temperatura calibrada (`repeat_penalty: 1.15`).
+   - Submete os dados consolidados ao modelo local no Ollama com controle de contexto (`num_ctx: 8192` por padrão) e temperatura calibrada (`repeat_penalty: 1.15`).
    - Transmite a saída em streaming direto via `stdout`.
 
-5. **Diretriz de Governança e Não-Intrusividade:**
-   - O agente **NÃO efetua alterações remotas nem abre Merge Requests/commits automaticamente**.
-   - Toda proposta de alteração técnica, regra ou correção é **apresentada de forma estruturada no parecer** para avaliação humana.
+5. **Diretriz de Governança e Não-Intrusividade (Fase de Testes):**
+   > [!IMPORTANT]
+   > **RESTRIÇÃO OPERACIONAL EM FASE DE TESTES:**
+   > Por se tratarem de testes e validação de maturidade com esses agentes autônomos, o agente **NÃO efetua alterações remotas nem abre Merge Requests/commits automaticamente**. Toda proposta de alteração técnica, regra ou correção deve ser apresentada exclusivamente de forma estruturada no parecer para revisão e validação humana.
+   > **Esta restrição de não-mutação direta será removida assim que o processo e os pareceres dos agentes se mostrarem plenamente confiáveis e estáveis.**
 
-6. **Telemetria de Execução:**
+6. **Telemetria e Observabilidade:**
    - Monitora o tempo decorrido, volume de tokens de entrada e saída e velocidade de geração (tokens/s) por alvo.
-   - Exibe o painel consolidado ao término da rodada.
+   - Exibe o painel consolidado com comparativo de métricas ao término da rodada.
+
+7. **Notificação e Disparo por E-mail:**
+   - Permite o envio automático do parecer e do resumo consolidado para equipes de engenharia/SRE via SMTP (`--send-email`, `--email-to` ou variáveis `EMAIL_TO`, `SMTP_HOST`).
 
 ---
 
@@ -95,3 +101,17 @@ Para adicionar uma nova capacidade ao agente:
    ```bash
    ./run.sh -w meu-trabalho
    ```
+
+---
+
+## 4. Diretriz de Calibração Conforme o Modelo Adotado
+
+Como o `specialized-agent` atua como motor de execução genérico, as regras operacionais, bases de conhecimento e prompts de cada especialização devem ser refinados considerando as capacidades do modelo neural selecionado:
+
+1. **Modelos de Fronteira (Cloud / Alta Capacidade):**
+   - Toleram bases de conhecimento densas e documentos múltiplos sem perda de foco.
+2. **Modelos Locais Menores (7B/8B):**
+   - Exigem compactação de contexto por alvo (via `build_system_prompt` no `runner.py`), instruções explícitas de não-complacência (ex.: varreduras de arquivos sensíveis são sempre ataques) e templates de sintaxe diretos.
+3. **Modelos Locais Intermediários (14B/32B):**
+   - Oferecem raciocínio avançado com execução acelerada por GPU local, reduzindo significativamente a taxa de alucinação e mantendo alta fidelidade às diretrizes originais da Skill.
+

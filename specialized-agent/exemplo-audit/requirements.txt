@@ -1,0 +1,4 @@
+# Dependências Python adicionais necessárias para este runner (opcional)
+# O agent.py instalará automaticamente via pip ao selecionar este trabalho
+# Exemplo:
+# requests>=2.31.0
