@@ -22,6 +22,8 @@ import urllib.request
 from datetime import datetime
 from email.message import EmailMessage
 
+import web_search
+
 # Configuração do Ollama
 raw_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 if not raw_host.startswith("http://") and not raw_host.startswith("https://"):
@@ -31,6 +33,13 @@ else:
 
 MODEL_NAME = os.environ.get("MODEL_NAME", "deepseek-r1:7b")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Configuração do llama.cpp (llama-server)
+raw_llamacpp = os.environ.get("LLAMACPP_HOST", "http://127.0.0.1:8081")
+if not raw_llamacpp.startswith("http://") and not raw_llamacpp.startswith("https://"):
+    LLAMACPP_HOST = f"http://{raw_llamacpp}"
+else:
+    LLAMACPP_HOST = raw_llamacpp
 
 
 def get_gpu_info():
@@ -210,6 +219,47 @@ def send_email_report(subject, body, to_addrs=None, from_addr=None, smtp_host=No
         return False
 
 
+def check_ollama_status(model=None):
+    """Verifica se o backend Ollama está acessível e se o modelo está pronto."""
+    try:
+        req = urllib.request.Request(f"{OLLAMA_HOST}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode("utf-8"))
+                models = [m.get("name", "") for m in data.get("models", [])]
+                if model:
+                    has_model = any(m == model or m.startswith(f"{model}:") or model.startswith(f"{m}:") for m in models)
+                    return True, has_model
+                return True, True
+    except Exception:
+        return False, False
+    return False, False
+
+
+def pull_model_if_missing(model):
+    """Solicita o download do modelo via API do Ollama se ainda não estiver presente."""
+    is_online, has_model = check_ollama_status(model)
+    if not is_online:
+        print(f"\033[1;31m[Erro Ollama]\033[0m Backend Ollama em {OLLAMA_HOST} inacessível.", file=sys.stderr)
+        print("Certifique-se de que o container 'ollama' está ativo na rede privada (./start-stack.sh).", file=sys.stderr)
+        sys.exit(1)
+    if not has_model:
+        print(f"\033[1;33m[Ollama API]\033[0m Modelo '{model}' não encontrado no Ollama. Efetuando pull via API...")
+        try:
+            payload = {"model": model, "stream": False}
+            req = urllib.request.Request(
+                f"{OLLAMA_HOST}/api/pull",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=600) as resp:
+                print(f"\033[1;32m[Ollama API]\033[0m Download do modelo '{model}' concluído com sucesso.")
+        except Exception as e:
+            print(f"\033[1;31m[Erro Pull]\033[0m Falha ao obter modelo '{model}': {e}", file=sys.stderr)
+            sys.exit(1)
+
+
 def query_llm(model, system_prompt, user_prompt, num_ctx=8192):
     """Envia requisição para inferência neural no Ollama local com streaming."""
     payload = {
@@ -251,6 +301,135 @@ def query_llm(model, system_prompt, user_prompt, num_ctx=8192):
         sys.exit(1)
 
     return "".join(full_output), final_meta
+
+
+def check_llamacpp_health(host=LLAMACPP_HOST, timeout=5):
+    """Verifica se o servidor llama.cpp (llama-server) está ativo e respondendo."""
+    try:
+        url = f"{host.rstrip('/')}/health"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status in (200, 204):
+                return True, f"llama-server online em {host}"
+    except Exception:
+        # Tenta endpoint alternativo de models
+        try:
+            url = f"{host.rstrip('/')}/v1/models"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status == 200:
+                    return True, f"llama-server online em {host}"
+        except Exception as e:
+            return False, f"Falha ao conectar no llama-server em {host}: {e}"
+    return False, f"llama-server em {host} inacessível."
+
+
+def resolve_llamacpp_model(host, requested_model):
+    """
+    Resolve o identificador de modelo mais compatível disponível no llama-server.
+    Permite usar aliases simples (ex: 'qwen2.5-coder:7b' ou 'deepseek-r1:7b')
+    mapeando automaticamente para os arquivos .gguf gerenciados pelo Router Mode.
+    """
+    try:
+        url = f"{host.rstrip('/')}/v1/models"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                models = [m.get("id") for m in data.get("data", []) if m.get("id")]
+                if not models:
+                    return requested_model
+                # Prioriza modelos locais da pasta models (sem '/' ou ':') sobre cache de download
+                models.sort(key=lambda x: (1 if "/" in x else 0))
+                if requested_model in models:
+                    return requested_model
+                req_lower = requested_model.lower().replace(".gguf", "")
+                for m in models:
+                    m_clean = m.lower().replace(".gguf", "")
+                    if m_clean == req_lower or req_lower in m_clean or m_clean in req_lower:
+                        return m
+                req_terms = set(re.split(r"[-_:\s/.]+", req_lower)) - {"", "latest", "instruct", "chat"}
+                best_match = None
+                best_score = 0
+                for m in models:
+                    m_terms = set(re.split(r"[-_:\s/.]+", m.lower().replace(".gguf", "")))
+                    score = len(req_terms.intersection(m_terms))
+                    if score > best_score:
+                        best_score = score
+                        best_match = m
+                if best_match and best_score > 0:
+                    return best_match
+                if len(models) == 1:
+                    return models[0]
+    except Exception:
+        pass
+    return requested_model
+
+
+def query_llamacpp(host, model, system_prompt, user_prompt, num_ctx=8192):
+    """Envia requisição para inferência neural no llama-server via API OpenAI compatível."""
+    active_model = resolve_llamacpp_model(host, model)
+    payload = {
+        "model": active_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": True,
+        "temperature": 0.25,
+        "max_tokens": 2048,
+        "presence_penalty": 0.1,
+        "frequency_penalty": 0.1,
+        "repeat_penalty": 1.15,
+    }
+
+    endpoint = f"{host.rstrip('/')}/v1/chat/completions"
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    full_output = []
+    total_eval_tokens = 0
+    start_eval = time.perf_counter()
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            for raw_line in response:
+                line = raw_line.decode("utf-8").strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data_str = line[5:].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    data = json.loads(data_str)
+                    choices = data.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        chunk = delta.get("content", "")
+                        if chunk:
+                            sys.stdout.write(chunk)
+                            sys.stdout.flush()
+                            full_output.append(chunk)
+                            total_eval_tokens += 1
+                except json.JSONDecodeError:
+                    continue
+        print("\n")
+    except urllib.error.URLError as e:
+        print(f"\n\033[1;31m[Erro llama.cpp]\033[0m Falha ao se comunicar com llama-server em {host}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    eval_duration_ns = int((time.perf_counter() - start_eval) * 1e9)
+    meta = {
+        "prompt_eval_count": max(1, int(len(system_prompt + user_prompt) / 4)),
+        "prompt_eval_duration": 1,
+        "eval_count": total_eval_tokens,
+        "eval_duration": eval_duration_ns,
+    }
+    return "".join(full_output), meta
 
 
 def main():
@@ -296,10 +475,11 @@ def main():
         help="Quantidade máxima de alvos a processar no modo 'all'"
     )
     parser.add_argument(
-        "--num-ctx",
+        "-c", "--ctx", "--num-ctx",
+        dest="num_ctx",
         type=int,
-        default=int(os.environ.get("OLLAMA_NUM_CTX", "8192")),
-        help="Janela de contexto no Ollama em tokens (padrão: 8192)"
+        default=int(os.environ.get("OLLAMA_NUM_CTX", os.environ.get("LLAMA_CTX_SIZE", "8192"))),
+        help="Janela de contexto em tokens (padrão: 8192, suporta 16384 ou 32768)"
     )
     parser.add_argument(
         "--send-email",
@@ -328,6 +508,45 @@ def main():
         action="store_true",
         default=False,
         help="Desativa compactação e injeta todas as bases de conhecimento em todos os alvos"
+    )
+    parser.add_argument(
+        "--web-search",
+        action="store_true",
+        default=os.environ.get("ENABLE_WEB_SEARCH", "1").lower() not in ("0", "false", "no"),
+        help="Habilita busca na web via SearXNG para enriquecer o contexto dos alvos (padrão: ativo)"
+    )
+    parser.add_argument(
+        "--no-web-search",
+        dest="web_search",
+        action="store_false",
+        help="Desativa a busca na web via SearXNG"
+    )
+    parser.add_argument(
+        "--searxng-url",
+        default=os.environ.get("SEARXNG_URL", "http://127.0.0.1:8080"),
+        help="URL da instância isolada do SearXNG (padrão: http://127.0.0.1:8080 ou SEARXNG_URL)"
+    )
+    parser.add_argument(
+        "--search-query",
+        default="",
+        help="Consulta de busca web específica (se omitida, o alvo gera dinamicamente)"
+    )
+    parser.add_argument(
+        "--max-web-results",
+        type=int,
+        default=3,
+        help="Quantidade máxima de resultados refinados da busca por alvo (padrão: 3)"
+    )
+    parser.add_argument(
+        "--backend",
+        choices=["ollama", "llamacpp"],
+        default=os.environ.get("LLM_BACKEND", "ollama").lower(),
+        help="Motor de inferência neural (ollama ou llamacpp, padrão: ollama)"
+    )
+    parser.add_argument(
+        "--llamacpp-host",
+        default=os.environ.get("LLAMACPP_HOST", LLAMACPP_HOST),
+        help="Endpoint do llama-server (padrão: http://127.0.0.1:8081 ou LLAMACPP_HOST)"
     )
     args = parser.parse_args()
     if args.full_context:
@@ -432,7 +651,18 @@ def main():
 
     knowledge_combined = "\n\n".join(knowledge_docs)
 
-    # 4. Inicialização do Runner do Trabalho
+    # 4. Validar disponibilidade do motor neural selecionado
+    if args.backend == "llamacpp":
+        llama_ok, llama_msg = check_llamacpp_health(args.llamacpp_host)
+        if not llama_ok:
+            print(f"\033[1;31m[Erro llama.cpp]\033[0m {llama_msg}", file=sys.stderr)
+            print("Certifique-se de que o container 'llamacpp' está ativo na rede privada (./start-stack.sh llamacpp).", file=sys.stderr)
+            sys.exit(1)
+        print(f"\033[1;32m[Backend llama.cpp]\033[0m Conectado com sucesso em {args.llamacpp_host}")
+    else:
+        pull_model_if_missing(args.model)
+
+    # 5. Inicialização do Runner do Trabalho
     runner_file = os.path.join(work_dir, "runner.py")
     runner_mod = load_module_from_file(f"work_{work_info['name']}_runner", runner_file)
 
@@ -461,6 +691,16 @@ def main():
             print(f"\033[1;32m[Conexão Online]\033[0m Backend conectado com sucesso. Documentos: {conn_info:,}")
         else:
             print(f"\033[1;33m[Aviso de Conexão]\033[0m Backend offline ou inacessível ({conn_info}).")
+
+    # Verificar conectividade com o SearXNG se busca web estiver ativada
+    if args.web_search:
+        print("\033[1;32m------------------------------------------------------------------\033[0m")
+        print(f"\033[1;34m[SearXNG]\033[0m Validando conectividade com o metabuscador em {args.searxng_url}...")
+        searx_ok, searx_msg = web_search.check_searxng_health(args.searxng_url)
+        if searx_ok:
+            print(f"\033[1;32m[Conexão Online]\033[0m {searx_msg}")
+        else:
+            print(f"\033[1;33m[Aviso de Conexão]\033[0m {searx_msg} (verifique se o container isolado searxng está ativo).")
 
     if runner_mod and hasattr(runner_mod, "collect_targets"):
         targets = runner_mod.collect_targets(
@@ -512,6 +752,53 @@ def main():
         else:
             user_prompt = f"Realize o diagnóstico do alvo '{target_name}' conforme as diretrizes da sua skill."
 
+        # Enriquecimento contextual via busca web (SearXNG) para o modelo neural
+        if args.web_search:
+            queries = []
+            if args.search_query:
+                queries = [args.search_query]
+            elif runner_mod and hasattr(runner_mod, "get_target_search_queries"):
+                queries = runner_mod.get_target_search_queries(target_name)
+            elif runner_mod and hasattr(runner_mod, "get_target_search_query"):
+                single_q = runner_mod.get_target_search_query(target_name)
+                if single_q:
+                    queries = [single_q]
+            else:
+                queries = [f"{target_name} security hardening best practices"]
+
+            total_q = len(queries)
+            collected_web_ctx = []
+            total_refined = 0
+
+            for q_idx, q_item in enumerate(queries, 1):
+                if isinstance(q_item, (list, tuple)) and len(q_item) == 2:
+                    q_label, q_str = q_item
+                else:
+                    q_label, q_str = f"Consulta {q_idx}", str(q_item)
+
+                prefix = f"[{q_idx}/{total_q}] " if total_q > 1 else ""
+                print(f"\033[1;34m[SearXNG]\033[0m {prefix}Consultando: '{q_str}'...")
+
+                per_query_limit = args.max_web_results if total_q == 1 else max(2, min(args.max_web_results, 3))
+                refined_items, web_ctx, search_err = web_search.search_and_refine(
+                    query=q_str,
+                    base_url=args.searxng_url,
+                    max_results=per_query_limit,
+                    max_snippet_chars=320,
+                )
+                if search_err:
+                    print(f"\033[1;33m[SearXNG Aviso]\033[0m {prefix}{search_err}")
+                elif refined_items:
+                    total_refined += len(refined_items)
+                    print(f"\033[1;32m[SearXNG Sucesso]\033[0m {prefix}{len(refined_items)} evidência(s) refinada(s).")
+                    collected_web_ctx.append(f"### Inteligência de Ameaça Web ({q_label})\n{web_ctx}")
+                else:
+                    print(f"\033[1;33m[SearXNG]\033[0m {prefix}Nenhum resultado relevante retornado.")
+
+            if collected_web_ctx:
+                full_web_block = "\n\n".join(collected_web_ctx)
+                user_prompt += f"\n\n=== EVIDÊNCIAS EXTERNAS DE THREAT INTELLIGENCE (SEARXNG) ===\n{full_web_block}"
+
         # Montar system prompt (compacto focado no alvo ou completo geral)
         if args.compact_context and runner_mod and hasattr(runner_mod, "build_system_prompt"):
             target_system_prompt = runner_mod.build_system_prompt(
@@ -520,8 +807,12 @@ def main():
         else:
             target_system_prompt = system_prompt
 
-        print(f"\033[1;34m[Raciocínio Neural]\033[0m Submetendo dossiê de '{target_name}' ao {args.model}...\n")
-        report_text, meta = query_llm(args.model, target_system_prompt, user_prompt, num_ctx=args.num_ctx)
+        backend_label = "llama.cpp" if args.backend == "llamacpp" else "Ollama"
+        print(f"\033[1;34m[Raciocínio Neural]\033[0m Submetendo dossiê de '{target_name}' ao {args.model} via {backend_label}...\n")
+        if args.backend == "llamacpp":
+            report_text, meta = query_llamacpp(args.llamacpp_host, args.model, target_system_prompt, user_prompt, num_ctx=args.num_ctx)
+        else:
+            report_text, meta = query_llm(args.model, target_system_prompt, user_prompt, num_ctx=args.num_ctx)
 
         p_tokens = meta.get("prompt_eval_count", 0)
         p_dur_ns = meta.get("prompt_eval_duration", 0)
@@ -531,7 +822,10 @@ def main():
         # Gancho genérico de avaliação e auto-correção da recomendação em /tmp
         if runner_mod and hasattr(runner_mod, "evaluate_and_refine"):
             def query_refine_fn(prompt):
-                return query_llm(args.model, target_system_prompt, prompt, num_ctx=args.num_ctx)
+                if args.backend == "llamacpp":
+                    return query_llamacpp(args.llamacpp_host, args.model, target_system_prompt, prompt, num_ctx=args.num_ctx)
+                else:
+                    return query_llm(args.model, target_system_prompt, prompt, num_ctx=args.num_ctx)
 
             report_text, extra_metrics = runner_mod.evaluate_and_refine(
                 target_name, report_text, query_refine_fn
@@ -575,8 +869,11 @@ def main():
     print(f"\033[1;32mTempo Total Decorrido:\033[0m     {global_total_time:.2f}s ({global_total_time / 60:.1f} min)")
     print(f"\033[1;32mTrabalho Executado:\033[0m        {work_info['name']}")
     print(f"\033[1;32mModelo Utilizado:\033[0m          {args.model}")
+    print(f"\033[1;32mBackend de Inferência:\033[0m     {args.backend.upper()} ({args.llamacpp_host if args.backend == 'llamacpp' else OLLAMA_HOST})")
     print(f"\033[1;32mHardware Ativo:\033[0m            {gpu_info}")
     print(f"\033[1;32mTotal de Alvos Processados:\033[0m{len(target_metrics)} alvo(s)")
+    if args.web_search:
+        print(f"\033[1;32mBusca Web (SearXNG):\033[0m       Ativa ({args.searxng_url})")
     print("------------------------------------------------------------------")
     print(f"{'Alvo':<32} {'Tempo':<9} {'Prompt':<14} {'Geração':<14} {'Velocidade':<12}")
     print("-" * 81)

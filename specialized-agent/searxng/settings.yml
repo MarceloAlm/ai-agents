@@ -1,0 +1,39 @@
+# SearXNG Settings para o Specialized Agent
+# Permite buscas anônimas e saída em JSON para Grounding de LLMs locais.
+
+use_default_settings: true
+
+server:
+  # Chave secreta interna (gerada para o ambiente local)
+  secret_key: "specialized-agent-searxng-local-key-32chars"
+  bind_address: "0.0.0.0"
+  port: 8080
+  image_proxy: false
+  # Limita rate-limiting interno para consultas do agente local
+  limiter: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  # Habilita explicitamente a saída em JSON para a API do agente
+  formats:
+    - html
+    - json
+
+# Configurações de motores recomendados para investigações técnicas
+engines:
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    timeout: 3.0
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    timeout: 3.0
+
+  - name: github
+    engine: github
+    shortcut: gh
+    categories: it
+    timeout: 4.0

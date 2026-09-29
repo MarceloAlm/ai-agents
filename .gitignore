@@ -1,0 +1,17 @@
+.obsidian/
+obsidian/
+
+# Credenciais e backups de autenticação
+.auth-backup/
+auth-backup/
+*oauth-token*
+*auth-backup*.tar.gz
+*.auth-backup.tar.gz
+__pycache__/
+
+# Modelos neurais locais e caches de download (GGUF / Hugging Face)
+models/
+**/models/
+*.gguf
+*.bin
+.cache/

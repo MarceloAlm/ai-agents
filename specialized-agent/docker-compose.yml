@@ -1,0 +1,114 @@
+# docker-compose.yml - Arquitetura Desacoplada com Rede Privada e Zero Portas Expostas no Host
+# Comunicação estritamente interna entre containers; egress para internet ativo em todos os serviços.
+
+services:
+  # 1. Motor Neural Ollama Isolado (GPU acelerada)
+  ollama:
+    container_name: ollama
+    image: docker.io/ollama/ollama:latest
+    restart: unless-stopped
+    # Exposição estrita na rede privada interna (NÃO exposto no host)
+    expose:
+      - "11434"
+    networks:
+      - specialized-net
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # 2. Motor Neural llama.cpp Isolado (llama-server alternativo com Flash Attention e KV Quant)
+  llamacpp:
+    container_name: llamacpp
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    restart: unless-stopped
+    expose:
+      - "8081"
+    networks:
+      - specialized-net
+    volumes:
+      - ./models:/models
+    environment:
+      - HF_HUB_CACHE=/models/hf-cache
+    command: >
+      --hf-repo bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF
+      --hf-file DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8081
+      -ngl 99
+      --flash-attn auto
+      -c 8192
+      -ctk q8_0
+      -ctv q8_0
+      --parallel 1
+      --metrics
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - llamacpp
+      - full
+
+  # 3. Metabuscador Privado SearXNG Isolado
+  searxng:
+    container_name: searxng
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    # Exposição estrita na rede privada interna (NÃO exposto no host)
+    expose:
+      - "8080"
+    networks:
+      - specialized-net
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  # 4. Orquestrador do Agente Especializado (Cliente leve Python)
+  agent:
+    container_name: specialized-agent
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: specialized-agent:standalone
+    depends_on:
+      - ollama
+      - searxng
+    networks:
+      - specialized-net
+    volumes:
+      - .:/app
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - LLAMACPP_HOST=http://llamacpp:8081
+      - SEARXNG_URL=http://searxng:8080
+      - MODEL_NAME=deepseek-r1:7b
+      - OLLAMA_NUM_CTX=8192
+      - ENABLE_WEB_SEARCH=1
+    command: ["-w", "exemplo-audit", "--web-search"]
+
+networks:
+  specialized-net:
+    name: specialized-net
+    driver: bridge
+
+volumes:
+  ollama-models:
+    name: ollama-models

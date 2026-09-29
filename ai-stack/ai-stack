@@ -1,20 +1,27 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/ornith-1.5:9b-coding",
+  "model": "local/qwen2.5-coder:7b",
   "provider": {
-    "ollama": {
+    "local": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama",
+      "name": "Local AI-Stack",
       "options": {
-        "baseURL": "http://host.containers.internal:4000/v1",
-        "apiKey": "ollama",
+        "baseURL": "http://host.containers.internal:8081/v1",
+        "apiKey": "local",
         "timeout": 300000
       },
       "models": {
-        "ornith-1.5:9b-coding": {
-          "name": "ornith-1.5:9b-coding",
+        "qwen2.5-coder:7b": {
+          "name": "qwen2.5-coder:7b",
           "limit": {
-            "context": 16384,
+            "context": 8192,
+            "output": 4096
+          }
+        },
+        "deepseek-r1:7b": {
+          "name": "deepseek-r1:7b",
+          "limit": {
+            "context": 8192,
             "output": 4096
           }
         }

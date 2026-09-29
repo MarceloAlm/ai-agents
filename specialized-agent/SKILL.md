@@ -23,11 +23,21 @@ O orquestrador identifica e assimila qualquer subpasta que siga a seguinte estru
 specialized-agent/
 ├── SKILL.md                   # Esta Skill Principal (Meta-Skill e governança central)
 ├── agent.py                   # Orquestrador modular (descoberta dinâmica e inferência)
-├── entrypoint.sh              # Gestão do ciclo de vida: Ollama background, pull e shutdown limpo
-├── Dockerfile                 # Imagem container com suporte modular
-├── build.sh                   # Script de compilação da imagem
-├── run.sh                     # Script de execução com montagem de volume
+├── web_search.py              # Módulo de busca SearXNG, refinamento e grounding para 7B
+├── start-stack.sh             # Inicializa Ollama e SearXNG isolados em rede privada
+├── stop-stack.sh              # Finaliza a stack isolada
+├── run-agent.sh               # Executa o agente leve conectado à stack desacoplada
+├── docker-compose.yml         # Orquestração da stack isolada (zero portas no host)
+├── entrypoint.sh              # Ciclo de vida monolítico (legado/autocontido)
+├── Dockerfile                 # Imagem container monolítica (Python + Ollama)
+├── Dockerfile.agent           # Imagem container desacoplada leve (Python 3.12)
+├── build.sh / build-agent.sh  # Scripts de compilação das imagens
+├── run.sh                     # Script de execução flexível com autodetecção de rede
 ├── README.md                  # Documentação completa da arquitetura
+│
+├── searxng/                   # Suporte ao SearXNG Isolado (sem exposição no host)
+│   ├── settings.yml           # Configuração de motores e API JSON
+│   └── run-searxng.sh         # Inicializador independente do SearXNG
 │
 └── <pasta-de-trabalho>/       # Subpasta especializada (ex.: analise-waf, syslog-audit, db-health)
     ├── SKILL.md (ou skills/)  # Diretrizes técnicas da especialização
@@ -51,28 +61,32 @@ specialized-agent/
 
 2. **Carga Contextual Rigorosa:**
    - Carrega a especificação da `SKILL.md` da subpasta selecionada.
-   - Carrega todas as bases de conhecimento disponíveis em `knowledge/*.md`.
+   - Carrega todas as bases de conhecimento disponíveis em `knowledge/*.md` *(extensão planejada no roadmap: ingestão multiformato via Apache Tika)*.
    - Adiciona os diretórios `bin/` e `scripts/` da pasta ao `PATH` e `sys.path`.
 
 3. **Coleta de Fatos e Evidências:**
    - Executa o módulo `runner.py` da subpasta (se implementado) para extrair fatos reais do ambiente (APIs, logs, bases de dados).
    - Valida conectividade via `check_connection()` e recupera alvos via `collect_targets()`.
 
-4. **Inferência Neural Acelerada por GPU:**
+4. **Grounding Opcional via SearXNG (Busca Web em Tempo Real):**
+   - Quando ativado via `--web-search` (ou `ENABLE_WEB_SEARCH=1`), consulta o container isolado do SearXNG para investigar CVEs, patches e referências normativas.
+   - O módulo [`web_search.py`](web_search.py) higieniza o HTML, descarta ruídos e limita os snippets (350 caracteres) para preservar o orçamento de atenção de modelos locais 7B.
+
+5. **Inferência Neural Acelerada por GPU:**
    - Submete os dados consolidados ao modelo local no Ollama com controle de contexto (`num_ctx: 8192` por padrão) e temperatura calibrada (`repeat_penalty: 1.15`).
    - Transmite a saída em streaming direto via `stdout`.
 
-5. **Diretriz de Governança e Não-Intrusividade (Fase de Testes):**
+6. **Diretriz de Governança e Não-Intrusividade (Fase de Testes):**
    > [!IMPORTANT]
    > **RESTRIÇÃO OPERACIONAL EM FASE DE TESTES:**
    > Por se tratarem de testes e validação de maturidade com esses agentes autônomos, o agente **NÃO efetua alterações remotas nem abre Merge Requests/commits automaticamente**. Toda proposta de alteração técnica, regra ou correção deve ser apresentada exclusivamente de forma estruturada no parecer para revisão e validação humana.
    > **Esta restrição de não-mutação direta será removida assim que o processo e os pareceres dos agentes se mostrarem plenamente confiáveis e estáveis.**
 
-6. **Telemetria e Observabilidade:**
+7. **Telemetria e Observabilidade:**
    - Monitora o tempo decorrido, volume de tokens de entrada e saída e velocidade de geração (tokens/s) por alvo.
    - Exibe o painel consolidado com comparativo de métricas ao término da rodada.
 
-7. **Notificação e Disparo por E-mail:**
+8. **Notificação e Disparo por E-mail:**
    - Permite o envio automático do parecer e do resumo consolidado para equipes de engenharia/SRE via SMTP (`--send-email`, `--email-to` ou variáveis `EMAIL_TO`, `SMTP_HOST`).
 
 ---

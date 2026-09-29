@@ -1,0 +1,24 @@
+FROM docker.io/python:3.12-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV OLLAMA_HOST=http://ollama:11434
+ENV SEARXNG_URL=http://searxng:8080
+ENV ENABLE_WEB_SEARCH=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copia os arquivos do projeto para o container
+COPY . /app
+
+# Configura o entrypoint do agente desacoplado
+COPY entrypoint-agent.sh /entrypoint-agent.sh
+RUN chmod +x /entrypoint-agent.sh /app/agent.py /app/*.sh 2>/dev/null || true
+
+ENTRYPOINT ["/entrypoint-agent.sh"]

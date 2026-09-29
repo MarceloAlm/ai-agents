@@ -1,0 +1,92 @@
+# docker-compose.yml - Hub Central de Provedores de IA (ai-stack)
+# Suporte a GPU NVIDIA, perfis modulares e rede compartilhada
+
+services:
+  # 1. llama.cpp - Máxima performance com Flash Attention e KV Cache quantizado em Q8
+  llamacpp:
+    container_name: llamacpp
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"
+    networks:
+      - ai-stack-net
+    volumes:
+      - ./models:/models
+    command: >
+      --models-dir /models
+      --models-max 1
+      --host 0.0.0.0
+      --port 8081
+      -ngl 99
+      --flash-attn auto
+      -c 8192
+      -ctk q8_0
+      -ctv q8_0
+      --parallel 1
+      --metrics
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - llamacpp
+      - default
+
+  # 2. Ollama - Gestão automatizada de modelos via registry
+  ollama:
+    container_name: ollama
+    image: docker.io/ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    networks:
+      - ai-stack-net
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - ollama
+
+  # 3. SearXNG - Metabuscador Privado para Grounding em tempo real
+  searxng:
+    container_name: searxng
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - ai-stack-net
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    profiles:
+      - searxng
+      - default
+
+networks:
+  ai-stack-net:
+    name: ai-stack-net
+    driver: bridge
+
+volumes:
+  ollama-models:
+    name: ollama-models

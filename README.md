@@ -10,13 +10,20 @@ Estão disponíveis containers para o **OpenCode** (na variante base e na varian
 |-----------|-----------|
 | [`opencode/`](opencode/) | Container **opencode** base: agente de IA em CLI, sem LSP, com skill de ambiente do container |
 | [`opencode-dotnet/`](opencode-dotnet/) | Container **opencode** com **.NET SDK 10** e **LSP habilitado** (C#/F#), ferramentas de performance e análise estática |
+| [`opencode-ml/`](opencode-ml/) | Container **opencode** focado em estudo de **Machine Learning em C#** (.NET 10, scripts `.csx`, Python para gráficos) |
 | [`antigravity/`](antigravity/) | Container do **Antigravity CLI** (`agy`, binário nativo **Go** — base `debian:trixie-slim` / Debian 13) com **.NET 10 SDK**, linters (`shellcheck`, `sqlfluff`, `yq`, `roslynator`), diagnóstico de rede/logs e **login OAuth via conta Google** (Google AI Pro/Ultra) |
-| [`ai-stack-allinone/`](ai-stack-allinone/) | **Opcional / em construção:** imagem com **Ollama** (modelos locais) + **LiteLLM** (proxy OpenAI-compatible com tool-calls) para rodar o agente offline, sem assinatura |
+| [`specialized-agent/`](specialized-agent/) | Agente autônomo modular para **SRE, Cibersegurança, Auditoria e Análise Forense** com grounding em tempo real e orquestração de skills |
+| [`ai-stack/`](ai-stack/) | **Hub Central de Provedores de IA:** infraestrutura neural desacoplada acelerada por GPU (**llama.cpp** com Flash Attention e KV quantizado, **Ollama** e **SearXNG**), servindo como backend local tanto para o OpenCode quanto para o Specialized Agent |
 
 ## Requisitos
 
-- [Podman](https://podman.io/)
+- [Podman](https://podman.io/) (versão 4.4+ recomendada) ou Docker
 - Git
+- **Para inferência local acelerada (AI-Stack e Specialized Agent):**
+  - Placa de vídeo **NVIDIA** com drivers proprietários instalados (`nvidia-smi`);
+  - Suporte a CDI / NVIDIA Container Toolkit (`nvidia-ctk cdi generate` para Podman ou `nvidia-container-toolkit` para Docker);
+  - VRAM recomendada: Mínimo 6 GB (para modelos 7B em `Q4_K_M`), ideal 8 GB a 12 GB+;
+  - Mínimo 16 GB de RAM no host.
 
 ## Build
 
@@ -75,18 +82,26 @@ Cada container roda mapeando o UID/GID do host (`--userns=keep-id:uid=1100,gid=1
 
 > Veja os guias específicos em [`opencode-dotnet/README.md`](opencode-dotnet/README.md) e [`antigravity/README.md`](antigravity/README.md) para detalhes de autenticação, ferramentas e permissões.
 
-## Stack local (opcional, em construção)
+## Stack Local (AI-Stack: Hub de Provedores)
+
+Para rodar agentes de forma totalmente offline e com aceleração por GPU local:
 
 ```bash
-cd ai-stack-allinone
-./run-ai-stack.sh
+cd ai-stack
+
+# 1. Baixar modelo GGUF otimizado (ex: Qwen 2.5 Coder 7B para OpenCode):
+./download-model.sh qwen2.5-coder:7b
+
+# 2. Iniciar a infraestrutura (llama.cpp com Flash Attention + SearXNG):
+./start-stack.sh llamacpp
 ```
 
-O primeiro boot baixa o modelo `frob/ornith-1.5:9b-coding-Q5_K_M` (~7,4 GB) e publica:
-- `11434` — API nativa do Ollama
-- `4000` — proxy LiteLLM (OpenAI-compatible `/v1`, com tool-calls)
+A stack disponibiliza:
+- `http://127.0.0.1:8081/v1` — API compatível com OpenAI (llama-server com Flash Attention e KV Cache quantizado para o OpenCode ou clientes externos);
+- `http://127.0.0.1:11434` — API do Ollama (caso iniciado com `./start-stack.sh ollama` ou `all`);
+- `http://127.0.0.1:8080` — Metabuscador SearXNG com API JSON para grounding do `specialized-agent`.
 
-> Veja o [`readme.txt`](ai-stack-allinone/readme.txt) para detalhes de teste, configuração de rede entre containers e ajustes de contexto/tokens, além de instruções para o opencode consumir o modelo local.
+> Veja o guia completo em [`ai-stack/README.md`](ai-stack/README.md) para detalhes de configuração, consumo pelo OpenCode e arquitetura de rede.
 
 ## Como funciona
 
