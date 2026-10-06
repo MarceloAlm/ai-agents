@@ -68,12 +68,16 @@ RUN groupadd --gid 1100 antigravity && \
     echo "antigravity ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/antigravity && \
     chmod 0440 /etc/sudoers.d/antigravity
 
-# Instala o CLI do Antigravity (binário nativo "agy", sempre a última versão).
+# Instala o CLI do Antigravity (binário nativo "agy").
 # Instalado no PATH do sistema (/usr/local/bin) de propósito: em runtime o volume
 # antigravity-home mascara /home/antigravity, então nada do home sobrevive à 1ª execução.
 # Com o binário fora do home, o auto-update em background falha em silêncio
 # (user antigravity não tem permissão de escrita em /usr/local/bin) — versão muda no rebuild.
-RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- -d /usr/local/bin
+# O build-arg AGY_VERSION invalida o cache do container quando uma nova versão upstream for detectada.
+ARG AGY_VERSION=latest
+LABEL org.opencontainers.image.version="${AGY_VERSION}"
+RUN echo "Instalando Antigravity CLI (versão: ${AGY_VERSION})..." && \
+    curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- -d /usr/local/bin
 
 # settings.json seedado com permissões de consulta, modelo e toolPermission da sessão.
 # Padrão: OAuth com conta do Google (Google AI Pro/Ultra). Aceita GEMINI_API_KEY se fornecida.

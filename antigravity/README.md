@@ -24,13 +24,17 @@ Ou dentro do próprio diretório:
 
 ```bash
 cd antigravity
-./build.sh                     # imagem antigravity:latest
-./build-sound.sh               # imagem antigravity:sound
-# ou
-podman build -t antigravity:sound -f Dockerfile.sound .
+./build.sh                     # detecta última versão upstream e reconstrói antigravity:latest
+./build-sound.sh               # detecta última versão upstream e reconstrói antigravity:sound
+# ou especificando versão ou variante manualmente:
+./build.sh 1.3.0
+./build.sh sound 1.3.0
 ```
 
-A imagem sempre baixa a versão mais recente oficial do executável `agy` durante o build.
+O `build.sh` consulta automaticamente a versão mais recente disponível no manifesto oficial do Antigravity CLI e repassa como `--build-arg AGY_VERSION=<versão>`. Isso invalida apenas a camada de download do `agy` no Podman (preservando o cache pesado do .NET SDK e pacotes Debian), garantindo que a nova versão seja efetivamente baixada e instalada.
+
+Além disso, os scripts `agy.sh` e `agy-sound.sh` verificam em tempo de execução se há uma nova versão disponível e exibem um aviso no terminal caso a imagem local esteja desatualizada (a verificação pode ser silenciada com `AGY_NO_UPDATE_CHECK=1`).
+
 
 ---
 
