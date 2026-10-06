@@ -103,9 +103,10 @@ Na versão `antigravity:sound` (executada via `agy-sound`), as funções de áud
 
 ---
 
-## Autenticação (OAuth com Conta Google)
+## Autenticação (OAuth com Conta Google ou API Key)
 
-O método de autenticação padrão é **OAuth com conta Google** (Google AI Pro/Ultra).
+### Padrão: OAuth com conta Google
+O método padrão é **OAuth com conta Google** (Google AI Pro/Ultra):
 
 1. No primeiro uso, execute:
    ```bash
@@ -120,7 +121,31 @@ O método de autenticação padrão é **OAuth com conta Google** (Google AI Pro
 
 Nas próximas execuções, o login ocorre silenciosamente.
 
-*(Opcional: Se desejar usar API Key do Gemini em vez de OAuth, passe a variável `GEMINI_API_KEY` no ambiente e configure `"modelProvider": "gemini"` no `settings.json`)*.
+### Alternativa: API Key do Gemini (Headless / Chaveamento Dinâmico)
+Se preferir usar uma chave de API direta em vez do OAuth, defina a variável `GEMINI_API_KEY` no seu host:
+
+```bash
+export GEMINI_API_KEY="AIzaSy..."
+agy
+```
+
+O `entrypoint.sh` detecta a presença da variável automaticamente:
+- Se `GEMINI_API_KEY` estiver definida: ativa `"modelProvider": "gemini"` no `settings.json`.
+- Se a variável estiver ausente/desmarcada: remove `"modelProvider": "gemini"`, revertendo imediatamente para o fluxo OAuth da conta Google.
+
+---
+
+## Integração Dinâmica com Servidores e Gateways MCP
+
+Você pode registrar servidores ou gateways MCP (*Model Context Protocol*) dinamicamente via variáveis de ambiente, sem precisar alterar arquivos de configuração manualmente:
+
+```bash
+export MCP_GATEWAY_URL="http://host.containers.internal:8000/mcp"
+export MCP_TOKEN="meu-token-bearer-opcional" # opcional
+agy
+```
+
+O container injeta e mescla essa definição automaticamente no arquivo `~/.gemini/config/mcp_config.json` durante o startup.
 
 ---
 
@@ -164,3 +189,74 @@ Para registrar runbooks, regras ou especializações próprias sem que sejam sob
   `~/.gemini/config/skills/<nome-da-skill>/SKILL.md`
 - **Específica do projeto (versionada com seu repositório):**  
   `.agents/skills/<nome-da-skill>/SKILL.md`
+
+---
+
+## Rede Corporativa, Proxy e Firewall (Allowlist de Endpoints)
+
+Se o container for executado em redes corporativas com inspeção SSL ou bloqueio de saída de rede (*egress*), certifique-se de que os seguintes domínios estejam liberados no proxy/firewall:
+
+### 1. Allowlist de Domínios Oficiais
+
+| Categoria | Domínios / Endpoints |
+|---|---|
+| **Autenticação (OAuth Google)** | `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com` |
+| **APIs de Modelos (Gemini / Code)** | `generativelanguage.googleapis.com`, `aicode.googleapis.com`, `cloudcode-pa.googleapis.com`, `daily-cloudcode-pa.googleapis.com` |
+| **Plataforma Antigravity & Flags** | `antigravity.google`, `antigravity.google.com`, `antigravity-unleash.goog` |
+| **Instalação, Auto-updater e CDN** | `antigravity-cli-auto-updater-974169037036.us-central1.run.app`, `storage.googleapis.com`, `www.gstatic.com`, `safebrowsing.googleapis.com` |
+| **Dependências & Skills Upstream** | `raw.githubusercontent.com` |
+| **Repositórios de Pacotes (Build)** | `deb.debian.org`, `packages.microsoft.com`, `api.nuget.org` |
+
+---
+
+### 2. Como Modificar o `Dockerfile` para Redes com Proxy ou CA Customizada
+
+Para construir a imagem em ambientes corporativos restritos, você pode adaptar o [`Dockerfile`](Dockerfile) em dois cenários:
+
+#### Cenário A: Passando argumentos de proxy no build (sem alterar o Dockerfile)
+O Podman e o Docker suportam `--build-arg` diretamente:
+
+```bash
+podman build \
+  --build-arg HTTP_PROXY="http://proxy.empresa.com:8080" \
+  --build-arg HTTPS_PROXY="http://proxy.empresa.com:8080" \
+  --build-arg NO_PROXY="localhost,127.0.0.1,host.containers.internal" \
+  -t antigravity:latest .
+```
+
+#### Cenário B: Modificando o `Dockerfile` para embutir CA corporativa e Proxy de APT
+
+Adicione o seguinte bloco logo após a linha `FROM debian:trixie-slim`:
+
+```dockerfile
+# ==============================================================================
+# Suporte a Proxy Corporativo e Certificados SSL Internos (Opcional)
+# ==============================================================================
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ENV http_proxy=${HTTP_PROXY} \
+    https_proxy=${HTTPS_PROXY} \
+    no_proxy=${NO_PROXY}
+
+# 1. Configurar proxy estático para o gerenciador de pacotes apt (se necessário):
+# RUN echo 'Acquire::http::Proxy "http://proxy.empresa.com:8080";' > /etc/apt/apt.conf.d/01proxy && \
+#     echo 'Acquire::https::Proxy "http://proxy.empresa.com:8080";' >> /etc/apt/apt.conf.d/01proxy
+
+# 2. Injetar Autoridade Certificadora (CA) raiz corporativa (para inspeção SSL):
+# COPY meucertificado-corporativo.crt /usr/local/share/ca-certificates/corp-ca.crt
+# RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+#     update-ca-certificates
+# ==============================================================================
+```
+
+#### Cenário C: Proxy em tempo de execução (`runtime`)
+Para que o `agy` acesse os serviços externos através do proxy do host, exporte as variáveis antes de chamar o `agy`:
+
+```bash
+export HTTP_PROXY="http://proxy.empresa.com:8080"
+export HTTPS_PROXY="http://proxy.empresa.com:8080"
+export NO_PROXY="localhost,127.0.0.1,host.containers.internal"
+agy
+```
+*(O Podman repassará as variáveis de ambiente ativas ou você pode adicioná-las aos `ARGS+=(-e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY)` no [`agy.sh`](agy.sh)).*

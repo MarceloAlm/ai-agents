@@ -82,5 +82,10 @@ if [ -S "$RUNTIME_DIR/pipewire-0" ]; then
     )
 fi
 
+# Repassa credenciais e endpoints MCP se definidos no host
+[ -n "$GEMINI_API_KEY" ] && ARGS+=(-e "GEMINI_API_KEY=$GEMINI_API_KEY")
+[ -n "$MCP_GATEWAY_URL" ] && ARGS+=(-e "MCP_GATEWAY_URL=$MCP_GATEWAY_URL")
+[ -n "$MCP_TOKEN" ] && ARGS+=(-e "MCP_TOKEN=$MCP_TOKEN")
+
 ARGS+=(antigravity:sound "$@")
 exec "${ARGS[@]}"

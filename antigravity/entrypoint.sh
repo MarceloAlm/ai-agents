@@ -43,7 +43,52 @@ if [ -d /etc/antigravity/skills/container-ambiente ]; then
     cp -r /etc/antigravity/skills/container-ambiente "$HOME/.gemini/config/skills/container-ambiente"
 fi
 
-if [ ! -f "$SEED_DIR/antigravity-oauth-token" ]; then
+# Chaveamento dinâmico: API Key (Gemini) vs OAuth (conta Google)
+if [ -n "$GEMINI_API_KEY" ]; then
+    jq '.modelProvider = "gemini"' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+else
+    # Sem API key: remove modelProvider = "gemini" se presente, garantindo fluxo OAuth
+    if jq -e '.modelProvider == "gemini"' "$SETTINGS" >/dev/null 2>&1; then
+        jq 'del(.modelProvider)' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+    fi
+fi
+
+# Injeção dinâmica de servidor ou gateway MCP via ambiente
+if [ -n "$MCP_GATEWAY_URL" ]; then
+    MCP_CFG="$HOME/.gemini/config/mcp_config.json"
+    mkdir -p "$(dirname "$MCP_CFG")"
+    [ -s "$MCP_CFG" ] || echo '{}' > "$MCP_CFG"
+
+    FRAG=$(mktemp)
+    if [ -n "$MCP_TOKEN" ]; then
+        cat > "$FRAG" <<EOF
+{
+  "mcpServers": {
+    "gateway": {
+      "serverUrl": "$MCP_GATEWAY_URL",
+      "headers": {
+        "Authorization": "Bearer $MCP_TOKEN"
+      }
+    }
+  }
+}
+EOF
+    else
+        cat > "$FRAG" <<EOF
+{
+  "mcpServers": {
+    "gateway": {
+      "serverUrl": "$MCP_GATEWAY_URL"
+    }
+  }
+}
+EOF
+    fi
+    jq -s '.[0] * .[1]' "$MCP_CFG" "$FRAG" > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
+    rm -f "$FRAG"
+fi
+
+if [ -z "$GEMINI_API_KEY" ] && [ ! -f "$SEED_DIR/antigravity-oauth-token" ]; then
     echo "[entrypoint] OAuth sem sessão ainda: rode 'agy auth login' (URL + código) ou apenas 'agy' e complete o login no terminal." >&2
 fi
 
