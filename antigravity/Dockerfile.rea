@@ -4,28 +4,24 @@ FROM antigravity:latest
 
 USER root
 
-# 1. Instala utilitários binários, de depuração e OpenJDK 21 (para Ghidra)
+ARG REA_VERSION=latest
+
+# Instala utilitários binários, OpenJDK 21, Node.js 22 LTS e ferramentas REA em camada única
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         binutils binwalk strace ltrace gdb xxd \
         openjdk-21-jre-headless && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# 2. Instala Node.js 22 LTS (runtime exigido pelo REA e MCP server)
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
+    npm install --global --no-fund --no-audit rea-agents@${REA_VERSION} asar && \
+    npm cache clean --force && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 3. Instala globalmente o pacote do REA (rea-agents) e o extrator Electron asar
-ARG REA_VERSION=latest
-RUN npm install --global rea-agents@${REA_VERSION} asar
-
-# 4. Configuração do servidor MCP do REA para o Antigravity
+# Configuração do servidor MCP do REA para o Antigravity
 COPY mcp_config.rea.json /etc/antigravity/mcp_config.json
 
-# 5. Adiciona a skill especializada de Engenharia Reversa
+# Adiciona a skill especializada de Engenharia Reversa
 COPY skills/reverse-engineering/ /etc/antigravity/skills/reverse-engineering/
 
 ENV AGY_VARIANT=rea

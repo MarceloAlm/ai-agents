@@ -35,7 +35,7 @@ echo "Versão do opencode-ai para o build: $VERSION"
 
 build_base() {
     echo "Construindo imagem opencode:latest a partir de $DIR/Dockerfile..."
-    podman build --build-arg OPENCODE_VERSION="$VERSION" -t opencode:latest -t opencode -f "$DIR/Dockerfile" "$DIR"
+    podman build --layers=false --build-arg OPENCODE_VERSION="$VERSION" -t opencode:latest -t opencode -f "$DIR/Dockerfile" "$DIR"
 }
 
 build_dotnet() {
@@ -43,7 +43,7 @@ build_dotnet() {
         build_base
     fi
     echo "Construindo imagem opencode:dotnet a partir de $DIR/Dockerfile.dotnet (sobre opencode:latest)..."
-    podman build -t opencode:dotnet -f "$DIR/Dockerfile.dotnet" "$DIR"
+    podman build --layers=false -t opencode:dotnet -f "$DIR/Dockerfile.dotnet" "$DIR"
 }
 
 build_ml() {
@@ -51,7 +51,7 @@ build_ml() {
         build_dotnet
     fi
     echo "Construindo imagem opencode:ml a partir de $DIR/Dockerfile.ml (sobre opencode:dotnet)..."
-    podman build -t opencode:ml -f "$DIR/Dockerfile.ml" "$DIR"
+    podman build --layers=false -t opencode:ml -f "$DIR/Dockerfile.ml" "$DIR"
 }
 
 case "$TARGET" in
@@ -70,3 +70,7 @@ case "$TARGET" in
         build_base
         ;;
 esac
+
+echo "Limpando camadas intermediárias e imagens não tagueadas..."
+podman image prune -f 2>/dev/null || true
+echo "Build concluído com sucesso!"
