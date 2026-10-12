@@ -21,6 +21,7 @@ restante do sistema (Podman), não no host.
 - **Isolado do host:** Sem cliente SSH. O código é montado localmente em `/workspace`.
 - **Acesso à internet:** disponível para consultas web e requisições HTTP (`curl`).
 - **Usuário:** `antigravity` (uid/gid 1100, `--userns=keep-id:uid=1100,gid=1100`), com **`sudo` sem senha**.
+- **Variante ativa:** Informada na variável `$AGY_VARIANT` e registrada em `~/.gemini/antigravity-cli/variant` (`base`, `sound` ou `rea`).
 
 ## Autonomia
 

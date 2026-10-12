@@ -19,6 +19,9 @@ fi
 
 mkdir -p "$SKILLS_DIR"
 
+# Marca no volume persistente compartilhado qual variante está em execução (base, sound, rea)
+echo "${AGY_VARIANT:-base}" > "$SEED_DIR/variant"
+
 if [ -f "$SETTINGS" ]; then
     # Mescla as configurações padrão de permissões, modelo e opções de execução,
     # preservando regras e personalizações customizadas do usuário.
@@ -37,10 +40,23 @@ else
     fi
 fi
 
-if [ -d /etc/antigravity/skills/container-ambiente ]; then
+if [ -d /etc/antigravity/skills ]; then
     mkdir -p "$SKILLS_DIR" "$HOME/.gemini/config/skills"
-    cp -r /etc/antigravity/skills/container-ambiente "$SKILLS_DIR/container-ambiente"
-    cp -r /etc/antigravity/skills/container-ambiente "$HOME/.gemini/config/skills/container-ambiente"
+    for skill_path in /etc/antigravity/skills/*; do
+        if [ -d "$skill_path" ]; then
+            sname="$(basename "$skill_path")"
+            cp -r "$skill_path" "$SKILLS_DIR/$sname"
+            cp -r "$skill_path" "$HOME/.gemini/config/skills/$sname"
+        fi
+    done
+fi
+
+MCP_CFG="$HOME/.gemini/config/mcp_config.json"
+mkdir -p "$(dirname "$MCP_CFG")"
+[ -s "$MCP_CFG" ] || echo '{}' > "$MCP_CFG"
+
+if [ -f /etc/antigravity/mcp_config.json ]; then
+    jq -s '.[0] * .[1]' "$MCP_CFG" /etc/antigravity/mcp_config.json > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
 fi
 
 # Chaveamento dinâmico: API Key (Gemini) vs OAuth (conta Google)
@@ -55,9 +71,6 @@ fi
 
 # Injeção dinâmica de servidor ou gateway MCP via ambiente
 if [ -n "$MCP_GATEWAY_URL" ]; then
-    MCP_CFG="$HOME/.gemini/config/mcp_config.json"
-    mkdir -p "$(dirname "$MCP_CFG")"
-    [ -s "$MCP_CFG" ] || echo '{}' > "$MCP_CFG"
 
     FRAG=$(mktemp)
     if [ -n "$MCP_TOKEN" ]; then

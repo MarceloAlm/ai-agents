@@ -3,20 +3,8 @@
 # instala o estado efetivo em /etc/opencode/skills — que é o local com maior
 # precedência no opencode e que o agente carrega de fato.
 #
-# Regras:
-#  1. A fonte das skills é o repositório de containers montado em /workspace
-#     (pasta skills/ da variante). Sem o repositório montado, usa as skills
-#     embutidas na imagem (/etc/opencode/skills).
-#  2. Cada arquivo é copiado para ~/.config/opencode/skills e o hash da fonte
-#     fica registrado num manifest. Na próxima execução:
-#       - se o arquivo do usuário não foi alterado, é atualizado para a nova
-#         versão da fonte;
-#       - se foi personalizado, a versão dele é PRESERVADA em
-#         ~/.config/opencode/skills-custom/<rel>.<timestamp>.custom e a versão
-#         oficial é reinstalada (nada se perde nos updates de boot).
-#  3. Preferências pessoais da skill ficam SEMPRE num arquivo separado
-#     (~/.config/opencode/skills/container-ambiente/preferences.md), nunca
-#     sobrescrito pela sincronização.
+# Marcação de variante:
+#  Registra a variante ativa (base, dotnet, ml) em ~/.config/opencode/variant
 set -u
 
 log() { printf '[entrypoint] %s\n' "$*" >&2; }
@@ -29,6 +17,10 @@ SKILLS_ETC="${SKILLS_ETC:-/etc/opencode/skills}"
 MANIFEST="${SKILLS_MANIFEST:-$HOME_DIR/.config/opencode/.skill-manifest.txt}"
 INSTALL_ETC="${SKILLS_INSTALL_ETC:-1}"
 
+# Marca a variante em execução no volume compartilhado
+mkdir -p "$HOME_DIR/.config/opencode"
+echo "${OPENCODE_VARIANT:-base}" > "$HOME_DIR/.config/opencode/variant"
+
 hash_of() {
     sha256sum "$1" 2>/dev/null | awk '{print $1}'
 }
@@ -36,8 +28,6 @@ hash_of() {
 pick_source() {
     local d
     for d in \
-        /workspace/opencode-dotnet/skills \
-        /workspace/opencode-ml/skills \
         /workspace/opencode/skills \
         /workspace/skills \
         "$SKILLS_ETC"; do
@@ -50,7 +40,6 @@ pick_source() {
 }
 
 prev_manifest_hash() {
-    # hash da fonte registrado para este arquivo relativo na última sync
     local rel="$1"
     [ -f "$MANIFEST" ] && awk -v r="$rel" '$2==r {print $1; exit}' "$MANIFEST" || true
 }
@@ -70,11 +59,9 @@ sync_file() {
         else
             prev=$(prev_manifest_hash "$rel")
             if [ -n "$prev" ] && [ "$prev" = "$dh" ]; then
-                # intocado desde a última sync -> apenas atualiza
                 cp "$src" "$dst" || return 1
                 log "atualizada: $rel"
             else
-                # personalizado pelo usuário -> preserva em arquivo separado
                 stamp=$(date +%Y%m%d-%H%M%S)
                 mkdir -p "$SKILLS_CUSTOM/$(dirname "$rel")"
                 bname="$SKILLS_CUSTOM/$rel.$stamp.custom"
@@ -104,8 +91,6 @@ sync_tree() {
 }
 
 seed_preferences() {
-    # Preferências do usuário vivem em preferences.md (arquivo separado).
-    # É criado uma única vez a partir do template e nunca é sobrescrito.
     local tmpl="$SKILLS_HOME/container-ambiente/preferences.example.md"
     local dst="$SKILLS_HOME/container-ambiente/preferences.md"
     if [ -f "$tmpl" ] && [ ! -f "$dst" ]; then
@@ -116,8 +101,6 @@ seed_preferences() {
 }
 
 install_to_etc() {
-    # O opencode carrega preferencialmente /etc/opencode/skills, então o
-    # estado efetivo (projeto >= atualizado no home) precisa chegar lá.
     if [ "$INSTALL_ETC" != "1" ]; then
         return 0
     fi
@@ -148,8 +131,6 @@ fi
 
 install_to_etc || log "falha ao instalar skills em /etc (continua mesmo assim)"
 
-# Compatibilidade com CMD ["opencode"] e com o script de execução
-# (que passa "opencode" como primeiro argumento).
 if [ "$#" -gt 0 ] && [ "$1" = "opencode" ]; then
     shift
 fi

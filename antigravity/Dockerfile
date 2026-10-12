@@ -60,6 +60,7 @@ ENV LANGUAGE=pt_BR:pt:en
 ENV LC_ALL=pt_BR.UTF-8
 ENV EDITOR=vim
 ENV VISUAL=vim
+ENV AGY_VARIANT=base
 
 # Usuário antigravity (uid 1100): mantém --userns=keep-id:uid=1100,gid=1100 e o volume
 # antigravity-home montado em /home/antigravity (debian slim não traz usuário).

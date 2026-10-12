@@ -8,10 +8,8 @@ Estão disponíveis containers para o **OpenCode** (na variante base e na varian
 
 | Diretório | Descrição |
 |-----------|-----------|
-| [`opencode/`](opencode/) | Container **opencode** base: agente de IA em CLI, sem LSP, com skill de ambiente do container |
-| [`opencode-dotnet/`](opencode-dotnet/) | Container **opencode** com **.NET SDK 10** e **LSP habilitado** (C#/F#), ferramentas de performance e análise estática |
-| [`opencode-ml/`](opencode-ml/) | Container **opencode** focado em estudo de **Machine Learning em C#** (.NET 10, scripts `.csx`, Python para gráficos) |
-| [`antigravity/`](antigravity/) | Container do **Antigravity CLI** (`agy`, binário nativo **Go** — base `debian:trixie-slim` / Debian 13) com **.NET 10 SDK**, linters (`shellcheck`, `sqlfluff`, `yq`, `roslynator`), diagnóstico de rede/logs e **login OAuth via conta Google** (Google AI Pro/Ultra) |
+| [`opencode/`](opencode/) | Container do **OpenCode** (`opencode`, runtime Node.js LTS). Disponível na imagem base ([`Dockerfile`](opencode/Dockerfile)), com .NET 10 SDK e LSP ([`:dotnet`](opencode/Dockerfile.dotnet)) e com ferramentas de Machine Learning em C# ([`:ml`](opencode/Dockerfile.ml)), construídas de forma incremental e compartilhando o volume `opencode-home` |
+| [`antigravity/`](antigravity/) | Container do **Antigravity CLI** (`agy`, binário nativo **Go** — base `debian:trixie-slim` / Debian 13) com **.NET 10 SDK**, linters (`shellcheck`, `sqlfluff`, `yq`, `roslynator`), diagnóstico de rede/logs e **login OAuth via conta Google** (Google AI Pro/Ultra). Disponível nas variantes base, com áudio/fala ([`:sound`](antigravity/Dockerfile.sound)) e engenharia reversa ([`:rea`](antigravity/Dockerfile.rea) com REA, Node 22 LTS, `rea-agents`, MCP server local, `binutils`, `binwalk`, `strace`, `gdb` e OpenJDK 21) |
 | [`specialized-agent/`](specialized-agent/) | Agente autônomo modular para **SRE, Cibersegurança, Auditoria e Análise Forense** com grounding em tempo real e orquestração de skills |
 | [`ai-stack/`](ai-stack/) | **Hub Central de Provedores de IA:** infraestrutura neural desacoplada acelerada por GPU (**llama.cpp** com Flash Attention e KV quantizado, **Ollama** e **SearXNG**), servindo como backend local tanto para o OpenCode quanto para o Specialized Agent |
 
@@ -30,19 +28,23 @@ Estão disponíveis containers para o **OpenCode** (na variante base e na varian
 Os builds são feitos **a partir da raiz do projeto**, pois os scripts usam o diretório do componente como contexto da imagem:
 
 ```bash
-./opencode/build.sh            # imagem "opencode"
-./opencode-dotnet/build.sh     # imagem "opencode:dotnet"
+./opencode/build.sh            # imagem base "opencode:latest"
+./opencode/build-dotnet.sh     # imagem incremental "opencode:dotnet" (ou ./opencode/build.sh dotnet)
+./opencode/build-ml.sh         # imagem incremental "opencode:ml" (ou ./opencode/build.sh ml)
 ./antigravity/build.sh         # imagem "antigravity" (CLI agy, OAuth conta Google)
 ./antigravity/build-sound.sh   # imagem "antigravity:sound" (com suporte a microfone e fala)
+./antigravity/build-rea.sh     # imagem "antigravity:rea" (Engenharia Reversa com REA + MCP)
 ```
 
 A versão dos agentes npm (`opencode`) é definida na hora do build. Os scripts `build.sh` aceitam a versão como argumento; sem ele, resolvem a **versão mais recente publicada no npm** consultando via um container efêmero de `node` (`podman run`), o que garante atualização e invalidação correta do cache quando uma nova versão é lançada. Só exige o Podman (sem npm no host); se a consulta falhar, cai para `latest`. O `antigravity` instala sempre a última versão oficial durante o build:
 
 ```bash
-./opencode/build.sh           # última versão publicada no npm
-./opencode/build.sh 1.18.29   # fixa uma versão específica no build
-./opencode-dotnet/build.sh 1.18.28
+./opencode/build.sh           # última versão publicada no npm (base)
+./opencode/build.sh dotnet    # constrói imagem opencode:dotnet
+./opencode/build.sh ml        # constrói imagem opencode:ml
+./opencode/build.sh all       # constrói todas as variantes incrementais do opencode
 ./antigravity/build.sh sound  # cria imagem antigravity:sound
+./antigravity/build.sh rea    # cria imagem antigravity:rea
 ```
 
 ## Instalação recomendada (uso global)
@@ -54,8 +56,12 @@ sudo cp opencode/opencode.sh /usr/local/bin/opencode
 sudo chmod +x /usr/local/bin/opencode
 
 # idem, se quiser a variante com .NET SDK
-sudo cp opencode-dotnet/opencode-dotnet.sh /usr/local/bin/opencode-dotnet
+sudo cp opencode/opencode-dotnet.sh /usr/local/bin/opencode-dotnet
 sudo chmod +x /usr/local/bin/opencode-dotnet
+
+# idem, se quiser a variante de Machine Learning em C#
+sudo cp opencode/opencode-ml.sh /usr/local/bin/opencode-ml
+sudo chmod +x /usr/local/bin/opencode-ml
 
 # idem, para o Antigravity CLI (agy) com login OAuth (conta do Google)
 sudo cp antigravity/agy.sh /usr/local/bin/agy
@@ -64,6 +70,10 @@ sudo chmod +x /usr/local/bin/agy
 # idem, para a versão do Antigravity com microfone ativado (:sound, comandos /voice e F5)
 sudo cp antigravity/agy-sound.sh /usr/local/bin/agy-sound
 sudo chmod +x /usr/local/bin/agy-sound
+
+# idem, para a versão do Antigravity com Engenharia Reversa (REA + MCP)
+sudo cp antigravity/agy-rea.sh /usr/local/bin/agy-rea
+sudo chmod +x /usr/local/bin/agy-rea
 ```
 
 ## Como usar
@@ -74,13 +84,15 @@ Entre na pasta do projeto que será trabalhado e rode o agente:
 cd /caminho/do/projeto
 opencode            # base
 opencode-dotnet     # com .NET SDK + LSP
+opencode-ml         # com Machine Learning em C# (.csx, python/matplotlib)
 agy                 # Antigravity CLI (agy), login OAuth com conta do Google
 agy-sound           # Antigravity com microfone ativado (gravação e reprodução de som, /voice e F5)
+agy-rea             # Antigravity especializado em Engenharia Reversa (REA + MCP)
 ```
 
 Cada container roda mapeando o UID/GID do host (`--userns=keep-id:uid=1100,gid=1100`), monta o projeto em `/workspace` e guarda os dados do agente em volumes persistentes dedicados (`opencode-home` e `antigravity-home`).
 
-> Veja os guias específicos em [`opencode-dotnet/README.md`](opencode-dotnet/README.md) e [`antigravity/README.md`](antigravity/README.md) para detalhes de autenticação, ferramentas e permissões.
+> Veja os guias específicos em [`opencode/README.md`](opencode/README.md) e [`antigravity/README.md`](antigravity/README.md) para detalhes de autenticação, ferramentas e permissões.
 
 ## Stack Local (AI-Stack: Hub de Provedores)
 

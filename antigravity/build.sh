@@ -15,6 +15,9 @@ for arg in "$@"; do
         sound)
             TARGET="sound"
             ;;
+        rea)
+            TARGET="rea"
+            ;;
         latest)
             TARGET="latest"
             ;;
@@ -58,6 +61,13 @@ echo "Versão alvo do Antigravity CLI para o build: $VERSION"
 if [ "$TARGET" = "sound" ]; then
     echo "Construindo imagem antigravity:sound a partir de $DIR/Dockerfile.sound..."
     podman build --build-arg AGY_VERSION="$VERSION" -t antigravity:sound -f "$DIR/Dockerfile.sound" "$DIR"
+elif [ "$TARGET" = "rea" ]; then
+    if ! podman image exists antigravity:latest 2>/dev/null; then
+        echo "Imagem base antigravity:latest não encontrada. Construindo base primeiro..."
+        podman build --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
+    fi
+    echo "Construindo imagem antigravity:rea a partir de $DIR/Dockerfile.rea (sobre antigravity:latest)..."
+    podman build -t antigravity:rea -f "$DIR/Dockerfile.rea" "$DIR"
 else
     echo "Construindo imagem antigravity:latest a partir de $DIR/Dockerfile..."
     podman build --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"

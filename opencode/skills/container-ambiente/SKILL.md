@@ -21,23 +21,25 @@ não no host.
 - **Acesso à internet:** disponível (`git`, `curl`, `wget`, `npx`, downloads de dependências funcionam normalmente).
 - **Projeto atual:** `/workspace` é o bind mount do projeto do usuário no host.
 - **Usuário:** não-root (`opencode`, uid/gid 1100), mapeado para o uid/gid 1000 do host via `--userns=keep-id:uid=1100,gid=1100`, com **`sudo` sem senha**.
+- **Variante ativa:** Informada na variável `$OPENCODE_VARIANT` e registrada em `~/.config/opencode/variant` (`base`, `dotnet` ou `ml`).
 
 ## Pastas e persistência
 
 | Caminho | Persistente? | Uso |
 |---|---|---|
 | `/workspace` | **Sim** | Projeto atual (bind mount do host). |
-| `/home` (= `/home/opencode`) | **Sim** | Volume `opencode-home`: config do opencode, credenciais, histórico, cache npm. |
+| `/home` (= `/home/opencode`) | **Sim** | Volume `opencode-home`: config do opencode, credenciais, histórico, cache npm e skills. |
 | `/tmp` | **Não** | Escrita livre, mas o conteúdo some quando o container encerra. |
 
 Regra prática: o que precisar durar vai para `/workspace` ou `/home`; `/tmp` é descartável.
 
-## Ferramentas
+## Ferramentas disponíveis por variante
 
-- `node`/`npm`, `opencode`, `git`, `rg`, `bash`, `sudo`, `apt`, `ca-certificates`.
+- **Base (`opencode:latest`):** `node`/`npm`, `opencode`, `git`, `rg`, `curl`, `wget`, `jq`, `unzip`/`zip`, `tree`, `file`, `bash`, `sudo`.
+- **Dotnet (`opencode:dotnet`):** base + **`.NET SDK 10`**, `dotnet-trace/counters/dump`, `roslynator`, `roslyn-language-server` (LSP C#).
+- **Machine Learning (`opencode:ml`):** dotnet + `python3`, `numpy`, `matplotlib`, `dotnet-script` (.csx) e `/opt/ml`.
 
-Consulte a [lista completa](references/ferramentas.md) e confirme no momento
-com `command -v <nome>`.
+Consulte a [lista completa](references/ferramentas.md) e confirme no momento com `command -v <nome>`.
 
 ## Instalação de Ferramentas e Restrições
 

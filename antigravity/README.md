@@ -18,6 +18,11 @@ A partir da raiz do repositório:
 ./antigravity/build-sound.sh
 # ou
 ./antigravity/build.sh sound
+
+# Imagem com Engenharia Reversa (:rea - REA + MCP + Node 22 + Binutils)
+./antigravity/build-rea.sh
+# ou
+./antigravity/build.sh rea
 ```
 
 Ou dentro do próprio diretório:
@@ -26,9 +31,11 @@ Ou dentro do próprio diretório:
 cd antigravity
 ./build.sh                     # detecta última versão upstream e reconstrói antigravity:latest
 ./build-sound.sh               # detecta última versão upstream e reconstrói antigravity:sound
+./build-rea.sh                 # constrói antigravity:rea sobre a imagem base
 # ou especificando versão ou variante manualmente:
 ./build.sh 1.3.0
 ./build.sh sound 1.3.0
+./build.sh rea 1.3.0
 ```
 
 O `build.sh` consulta automaticamente a versão mais recente disponível no manifesto oficial do Antigravity CLI e repassa como `--build-arg AGY_VERSION=<versão>`. Isso invalida apenas a camada de download do `agy` no Podman (preservando o cache pesado do .NET SDK e pacotes Debian), garantindo que a nova versão seja efetivamente baixada e instalada.
@@ -52,6 +59,10 @@ sudo chmod +x /usr/local/bin/agy
 # Versão com suporte a microfone e fala (:sound)
 sudo cp antigravity/agy-sound.sh /usr/local/bin/agy-sound
 sudo chmod +x /usr/local/bin/agy-sound
+
+# Versão com Engenharia Reversa (:rea - REA + MCP)
+sudo cp antigravity/agy-rea.sh /usr/local/bin/agy-rea
+sudo chmod +x /usr/local/bin/agy-rea
 ```
 
 ### 2. Executando em um projeto
@@ -66,6 +77,9 @@ agy
 
 # Versão com microfone ativado:
 agy-sound
+
+# Versão com Engenharia Reversa (compartilha o mesmo login OAuth e volume home):
+agy-rea
 ```
 
 Ou diretamente via `podman`:
