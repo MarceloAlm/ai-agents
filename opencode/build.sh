@@ -8,16 +8,19 @@ VERSION=""
 # Detecta runtime: podman ou docker
 if command -v podman >/dev/null 2>&1; then
     ENGINE="podman"
-    BUILD_FLAGS=(--layers=false --squash)
 elif command -v docker >/dev/null 2>&1; then
     ENGINE="docker"
-    BUILD_FLAGS=(--no-cache)
 else
     echo "Erro: nem 'podman' nem 'docker' foram encontrados no PATH do sistema." >&2
     exit 1
 fi
 
 echo "Motor de container detectado: $ENGINE"
+
+BUILD_OPTS=()
+if [ "$ENGINE" = "podman" ]; then
+    BUILD_OPTS+=(--squash)
+fi
 
 for arg in "$@"; do
     case "$arg" in
@@ -58,7 +61,7 @@ image_exists() {
 
 build_base() {
     echo "Construindo imagem opencode:latest a partir de $DIR/Dockerfile..."
-    "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg OPENCODE_VERSION="$VERSION" -t opencode:latest -t opencode -f "$DIR/Dockerfile" "$DIR"
+    "$ENGINE" build "${BUILD_OPTS[@]}" --build-arg OPENCODE_VERSION="$VERSION" -t opencode:latest -t opencode -f "$DIR/Dockerfile" "$DIR"
 }
 
 build_dotnet() {
@@ -66,7 +69,7 @@ build_dotnet() {
         build_base
     fi
     echo "Construindo imagem opencode:dotnet a partir de $DIR/Dockerfile.dotnet (sobre opencode:latest)..."
-    "$ENGINE" build "${BUILD_FLAGS[@]}" -t opencode:dotnet -f "$DIR/Dockerfile.dotnet" "$DIR"
+    "$ENGINE" build "${BUILD_OPTS[@]}" -t opencode:dotnet -f "$DIR/Dockerfile.dotnet" "$DIR"
 }
 
 build_ml() {
@@ -74,7 +77,7 @@ build_ml() {
         build_dotnet
     fi
     echo "Construindo imagem opencode:ml a partir de $DIR/Dockerfile.ml (sobre opencode:dotnet)..."
-    "$ENGINE" build "${BUILD_FLAGS[@]}" -t opencode:ml -f "$DIR/Dockerfile.ml" "$DIR"
+    "$ENGINE" build "${BUILD_OPTS[@]}" -t opencode:ml -f "$DIR/Dockerfile.ml" "$DIR"
 }
 
 case "$TARGET" in

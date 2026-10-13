@@ -8,18 +8,19 @@ VERSION=""
 # Detecta runtime disponível: podman ou docker
 if command -v podman >/dev/null 2>&1; then
     ENGINE="podman"
-    # Podman: desativa cache intermediário (--layers=false) e achata camadas novas (--squash)
-    BUILD_FLAGS=(--layers=false --squash)
 elif command -v docker >/dev/null 2>&1; then
     ENGINE="docker"
-    # Docker: não possui --layers nem --squash (BuildKit), usa --no-cache
-    BUILD_FLAGS=(--no-cache)
 else
     echo "Erro: nem 'podman' nem 'docker' foram encontrados no PATH do sistema." >&2
     exit 1
 fi
 
 echo "Motor de container detectado: $ENGINE"
+
+BUILD_OPTS=()
+if [ "$ENGINE" = "podman" ]; then
+    BUILD_OPTS+=(--squash)
+fi
 
 # Permite argumentos flexíveis: TARGET ("sound", "rea" ou "latest") e versão opcional
 # Ex.: ./build.sh
@@ -84,18 +85,22 @@ image_exists() {
 }
 
 if [ "$TARGET" = "sound" ]; then
-    echo "Construindo imagem antigravity:sound a partir de $DIR/Dockerfile.sound..."
-    "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:sound -f "$DIR/Dockerfile.sound" "$DIR"
+    if ! image_exists antigravity:latest; then
+        echo "Imagem base antigravity:latest não encontrada. Construindo base primeiro..."
+        "$ENGINE" build "${BUILD_OPTS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
+    fi
+    echo "Construindo imagem antigravity:sound a partir de $DIR/Dockerfile.sound (sobre antigravity:latest)..."
+    "$ENGINE" build "${BUILD_OPTS[@]}" -t antigravity:sound -f "$DIR/Dockerfile.sound" "$DIR"
 elif [ "$TARGET" = "rea" ]; then
     if ! image_exists antigravity:latest; then
         echo "Imagem base antigravity:latest não encontrada. Construindo base primeiro..."
-        "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
+        "$ENGINE" build "${BUILD_OPTS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
     fi
     echo "Construindo imagem antigravity:rea a partir de $DIR/Dockerfile.rea (sobre antigravity:latest)..."
-    "$ENGINE" build "${BUILD_FLAGS[@]}" -t antigravity:rea -f "$DIR/Dockerfile.rea" "$DIR"
+    "$ENGINE" build "${BUILD_OPTS[@]}" -t antigravity:rea -f "$DIR/Dockerfile.rea" "$DIR"
 else
     echo "Construindo imagem antigravity:latest a partir de $DIR/Dockerfile..."
-    "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
+    "$ENGINE" build "${BUILD_OPTS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
 fi
 
 echo "Limpando camadas intermediárias e imagens órfãs (dangling)..."

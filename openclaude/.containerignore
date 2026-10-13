@@ -1,0 +1,21 @@
+# Version control & host configs
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Documentation & temporary archives
+*.md
+*.tar
+*.tar.gz
+*.zip
+*.bak
+*~
+
+# Logs & caches
+*.log
+
+# Host wrappers and build scripts
+openclaude.sh
+build*.sh

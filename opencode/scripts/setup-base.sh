@@ -35,9 +35,14 @@ cat << 'EOF' > /etc/opencode/opencode.json
 }
 EOF
 
+# Posiciona o entrypoint com permissão de execução
+if [ -f /tmp/setup/entrypoint.sh ]; then
+    install -m 755 /tmp/setup/entrypoint.sh /usr/local/bin/opencode-entrypoint.sh
+fi
+
 echo "==> [5/5] Limpeza de caches e arquivos temporários..."
 apt-get clean
 rm -rf /var/lib/apt/lists/* /root/.npm /root/.cache /var/cache/* /var/tmp/*
-find /tmp -mindepth 1 ! -name "setup-*.sh" -delete 2>/dev/null || true
+find /tmp -mindepth 1 ! -name "setup-*.sh" ! -name "setup" -delete 2>/dev/null || true
 
 echo "==> Provisionamento do opencode (base) concluído com sucesso!"

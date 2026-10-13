@@ -1,0 +1,25 @@
+# Version control & host configs
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Documentation & temporary archives
+*.md
+*.tar
+*.tar.gz
+*.zip
+*.bak
+*~
+
+# Logs & crash dumps
+*.log
+*.dump
+*.dmp
+
+# Host wrappers and build scripts (not needed inside container build context)
+agy.sh
+agy-sound.sh
+agy-rea.sh
+build*.sh

@@ -19,16 +19,12 @@ ENV PATH="/dotnet-tools:${PATH}" \
 ARG AGY_VERSION=latest
 LABEL org.opencontainers.image.version="${AGY_VERSION}"
 
-# Provisionamento completo do SO, .NET 10, usuário e CLI em passo único e limpo
-COPY scripts/setup-base.sh /tmp/setup-base.sh
-RUN bash /tmp/setup-base.sh --version "${AGY_VERSION}" && rm -f /tmp/setup-base.sh
-
-# Configurações semeadas e skills
-COPY settings.json /etc/antigravity/settings.json
+# Skills do container
 COPY skills/container-ambiente/ /etc/antigravity/skills/container-ambiente/
 
-# Entrypoint com permissão de execução
-COPY --chmod=755 entrypoint.sh /usr/local/bin/antigravity-entrypoint.sh
+# Provisionamento completo do SO, ferramentas e assets em passo único
+COPY settings.json entrypoint.sh scripts/setup-base.sh /tmp/setup/
+RUN bash /tmp/setup/setup-base.sh "${AGY_VERSION}" && rm -rf /tmp/setup
 
 WORKDIR /workspace
 USER antigravity

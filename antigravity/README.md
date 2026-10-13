@@ -106,6 +106,8 @@ podman run --rm -it --userns=keep-id:uid=1100,gid=1100 \
 ```
 
 > **Nota sobre `--hostname antigravity`**: O hostname fixo garante uma chave estável de criptografia para o `FileKeychain`, permitindo que o token OAuth seja descriptografado corretamente entre recriações do container.
+>
+> **Nota sobre armazenamento rootless e `--userns=keep-id`**: Para evitar duplicação do tamanho da imagem na primeira execução (de 1.75 GB para 3.4 GB), configure o Podman no host com `fuse-overlayfs` em `~/.config/containers/storage.conf`. Veja o [README principal](../README.md#otimização-de-armazenamento-e-driver-do-podman-fuse-overlayfs) para o passo a passo.
 
 ### 3. Usando funções de voz e fala no CLI (`/voice` ou F5)
 

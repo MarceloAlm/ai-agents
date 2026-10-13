@@ -17,6 +17,7 @@ Estão disponíveis containers para o **OpenCode** (na variante base e na varian
 
 - [Podman](https://podman.io/) (versão 4.4+ recomendada) ou Docker
 - Git
+- **Para Podman rootless (Otimização de Armazenamento):** Instalação do `fuse-overlayfs` (evita duplicação de camadas ao usar `--userns=keep-id`, veja seção abaixo)
 - **Para inferência local acelerada (AI-Stack e Specialized Agent):**
   - Placa de vídeo **NVIDIA** com drivers proprietários instalados (`nvidia-smi`);
   - Suporte a CDI / NVIDIA Container Toolkit (`nvidia-ctk cdi generate` para Podman ou `nvidia-container-toolkit` para Docker);
@@ -125,3 +126,39 @@ A stack disponibiliza:
   - No **OpenCode**, crie skills em `~/.config/opencode/skills/<nome>/SKILL.md` (volume persistente) ou `.opencode/skills/<nome>/SKILL.md` (no repositório do projeto).
   - No **Antigravity**, crie skills em `~/.gemini/config/skills/<nome>/SKILL.md` (volume persistente) ou `.agents/skills/<nome>/SKILL.md` (no repositório do projeto).
   - Isso garante que especializações e regras personalizadas não sejam sobrescritas pela sincronização automática da skill `container-ambiente` na inicialização do container.
+
+---
+
+## Otimização de Armazenamento e Driver do Podman (`fuse-overlayfs`)
+
+Por padrão, em ambientes rootless com o driver `overlay` nativo do kernel, o Podman não consegue realizar mapeamentos dinâmicos de permissões (*idmapped mounts*) ao usar `--userns=keep-id`. Como resultado, na primeira execução do container, o Podman copia recursivamente todos os arquivos das camadas da imagem para o storage local do usuário, **duplicando o consumo de disco** (por exemplo, uma imagem de 1.75 GB passa a ocupar 3.42 GB no `podman system df`).
+
+### Como evitar a duplicação de camadas:
+Configure o Podman para usar o `fuse-overlayfs` como utilitário de montagem:
+
+1. **Instalar o pacote no host:**
+   ```bash
+   sudo apt update && sudo apt install -y fuse-overlayfs
+   ```
+
+2. **Configurar o storage do Podman:**
+   Crie ou edite `~/.config/containers/storage.conf`:
+   ```toml
+   [storage]
+   driver = "overlay"
+
+   [storage.options.overlay]
+   mount_program = "/usr/bin/fuse-overlayfs"
+   ```
+
+3. **Aplicar a configuração:**
+   Se já existiam containers ou imagens construídos antes dessa configuração:
+   - Faça backup dos volumes persistentes:  
+     `podman volume export antigravity-home > ~/antigravity-home.tar`
+   - Resete o storage do Podman:  
+     `podman system reset -f`
+   - Restaure os volumes:  
+     `podman volume create antigravity-home && podman volume import antigravity-home ~/antigravity-home.tar`
+   - Reconstrua as imagens (`./antigravity/build.sh`, `./opencode/build.sh`).
+
+Com o `fuse-overlayfs`, o Podman compartilha as camadas diretamente sem duplicar arquivos (`UNIQUE SIZE` de poucos kilobytes).
