@@ -5,6 +5,20 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="latest"
 VERSION=""
 
+# Detecta runtime: podman ou docker
+if command -v podman >/dev/null 2>&1; then
+    ENGINE="podman"
+    BUILD_FLAGS=(--layers=false --squash)
+elif command -v docker >/dev/null 2>&1; then
+    ENGINE="docker"
+    BUILD_FLAGS=(--no-cache)
+else
+    echo "Erro: nem 'podman' nem 'docker' foram encontrados no PATH do sistema." >&2
+    exit 1
+fi
+
+echo "Motor de container detectado: $ENGINE"
+
 for arg in "$@"; do
     case "$arg" in
         dotnet)
@@ -28,30 +42,39 @@ for arg in "$@"; do
 done
 
 if [ -z "$VERSION" ]; then
-    VERSION=$(podman run --rm node:lts-slim npm view opencode-ai version 2>/dev/null || echo latest)
+    VERSION=$("$ENGINE" run --rm node:lts-slim npm view opencode-ai version 2>/dev/null || echo latest)
 fi
 
 echo "Versão do opencode-ai para o build: $VERSION"
 
+image_exists() {
+    local img="$1"
+    if [ "$ENGINE" = "podman" ]; then
+        podman image exists "$img" 2>/dev/null
+    else
+        docker image inspect "$img" >/dev/null 2>&1
+    fi
+}
+
 build_base() {
     echo "Construindo imagem opencode:latest a partir de $DIR/Dockerfile..."
-    podman build --layers=false --build-arg OPENCODE_VERSION="$VERSION" -t opencode:latest -t opencode -f "$DIR/Dockerfile" "$DIR"
+    "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg OPENCODE_VERSION="$VERSION" -t opencode:latest -t opencode -f "$DIR/Dockerfile" "$DIR"
 }
 
 build_dotnet() {
-    if ! podman image exists opencode:latest 2>/dev/null; then
+    if ! image_exists opencode:latest; then
         build_base
     fi
     echo "Construindo imagem opencode:dotnet a partir de $DIR/Dockerfile.dotnet (sobre opencode:latest)..."
-    podman build --layers=false -t opencode:dotnet -f "$DIR/Dockerfile.dotnet" "$DIR"
+    "$ENGINE" build "${BUILD_FLAGS[@]}" -t opencode:dotnet -f "$DIR/Dockerfile.dotnet" "$DIR"
 }
 
 build_ml() {
-    if ! podman image exists opencode:dotnet 2>/dev/null; then
+    if ! image_exists opencode:dotnet; then
         build_dotnet
     fi
     echo "Construindo imagem opencode:ml a partir de $DIR/Dockerfile.ml (sobre opencode:dotnet)..."
-    podman build --layers=false -t opencode:ml -f "$DIR/Dockerfile.ml" "$DIR"
+    "$ENGINE" build "${BUILD_FLAGS[@]}" -t opencode:ml -f "$DIR/Dockerfile.ml" "$DIR"
 }
 
 case "$TARGET" in
@@ -71,6 +94,6 @@ case "$TARGET" in
         ;;
 esac
 
-echo "Limpando camadas intermediárias e imagens não tagueadas..."
-podman image prune -f 2>/dev/null || true
-echo "Build concluído com sucesso!"
+echo "Limpando camadas intermediárias e imagens órfãs (dangling)..."
+"$ENGINE" image prune -f 2>/dev/null || true
+echo "Build do opencode concluído com sucesso!"

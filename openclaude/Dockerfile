@@ -1,12 +1,8 @@
 FROM node:lts-slim
 
-# Executa instalações do sistema e pacote npm em camada única
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ripgrep git ca-certificates && \
-    npm install -g --no-fund --no-audit @gitlawb/openclaude && \
-    npm cache clean --force && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Executa provisionamento em passo único limpo via script dedicado
+COPY scripts/setup-openclaude.sh /tmp/setup-openclaude.sh
+RUN bash /tmp/setup-openclaude.sh && rm -f /tmp/setup-openclaude.sh
 
 WORKDIR /workspace
 USER node

@@ -5,7 +5,23 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="latest"
 VERSION=""
 
-# Permite argumentos flexíveis: TARGET ("sound" ou "latest") e versão opcional
+# Detecta runtime disponível: podman ou docker
+if command -v podman >/dev/null 2>&1; then
+    ENGINE="podman"
+    # Podman: desativa cache intermediário (--layers=false) e achata camadas novas (--squash)
+    BUILD_FLAGS=(--layers=false --squash)
+elif command -v docker >/dev/null 2>&1; then
+    ENGINE="docker"
+    # Docker: não possui --layers nem --squash (BuildKit), usa --no-cache
+    BUILD_FLAGS=(--no-cache)
+else
+    echo "Erro: nem 'podman' nem 'docker' foram encontrados no PATH do sistema." >&2
+    exit 1
+fi
+
+echo "Motor de container detectado: $ENGINE"
+
+# Permite argumentos flexíveis: TARGET ("sound", "rea" ou "latest") e versão opcional
 # Ex.: ./build.sh
 #      ./build.sh sound
 #      ./build.sh 1.3.0
@@ -58,21 +74,30 @@ fi
 VERSION="${VERSION:-latest}"
 echo "Versão alvo do Antigravity CLI para o build: $VERSION"
 
+image_exists() {
+    local img="$1"
+    if [ "$ENGINE" = "podman" ]; then
+        podman image exists "$img" 2>/dev/null
+    else
+        docker image inspect "$img" >/dev/null 2>&1
+    fi
+}
+
 if [ "$TARGET" = "sound" ]; then
     echo "Construindo imagem antigravity:sound a partir de $DIR/Dockerfile.sound..."
-    podman build --layers=false --build-arg AGY_VERSION="$VERSION" -t antigravity:sound -f "$DIR/Dockerfile.sound" "$DIR"
+    "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:sound -f "$DIR/Dockerfile.sound" "$DIR"
 elif [ "$TARGET" = "rea" ]; then
-    if ! podman image exists antigravity:latest 2>/dev/null; then
+    if ! image_exists antigravity:latest; then
         echo "Imagem base antigravity:latest não encontrada. Construindo base primeiro..."
-        podman build --layers=false --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
+        "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
     fi
     echo "Construindo imagem antigravity:rea a partir de $DIR/Dockerfile.rea (sobre antigravity:latest)..."
-    podman build --layers=false -t antigravity:rea -f "$DIR/Dockerfile.rea" "$DIR"
+    "$ENGINE" build "${BUILD_FLAGS[@]}" -t antigravity:rea -f "$DIR/Dockerfile.rea" "$DIR"
 else
     echo "Construindo imagem antigravity:latest a partir de $DIR/Dockerfile..."
-    podman build --layers=false --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
+    "$ENGINE" build "${BUILD_FLAGS[@]}" --build-arg AGY_VERSION="$VERSION" -t antigravity:latest -t antigravity "$DIR"
 fi
 
-echo "Limpando camadas intermediárias e imagens não tagueadas..."
-podman image prune -f 2>/dev/null || true
+echo "Limpando camadas intermediárias e imagens órfãs (dangling)..."
+"$ENGINE" image prune -f 2>/dev/null || true
 echo "Build concluído com sucesso!"

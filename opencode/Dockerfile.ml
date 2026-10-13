@@ -7,14 +7,9 @@ USER root
 
 ENV OPENCODE_VARIANT=ml
 
-# Python, bibliotecas científicas e runner de scripts C# (.csx) em camada única
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3 python3-numpy python3-matplotlib && \
-    dotnet tool install --tool-path /dotnet-tools dotnet-script && \
-    chown -R opencode:opencode /dotnet-tools && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Python, bibliotecas científicas e dotnet-script via script modular
+COPY scripts/setup-ml.sh /tmp/setup-ml.sh
+RUN bash /tmp/setup-ml.sh && rm -f /tmp/setup-ml.sh
 
 # Exemplos de referência para estudo de redes neurais (read-only em /opt/ml)
 COPY ml-reference /opt/ml

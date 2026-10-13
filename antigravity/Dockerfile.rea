@@ -6,17 +6,9 @@ USER root
 
 ARG REA_VERSION=latest
 
-# Instala utilitários binários, OpenJDK 21, Node.js 22 LTS e ferramentas REA em camada única
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        binutils binwalk strace ltrace gdb xxd \
-        openjdk-21-jre-headless && \
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    npm install --global --no-fund --no-audit rea-agents@${REA_VERSION} asar && \
-    npm cache clean --force && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Provisionamento das ferramentas de engenharia reversa via script
+COPY scripts/setup-rea.sh /tmp/setup-rea.sh
+RUN bash /tmp/setup-rea.sh "${REA_VERSION}" && rm -f /tmp/setup-rea.sh
 
 # Configuração do servidor MCP do REA para o Antigravity
 COPY mcp_config.rea.json /etc/antigravity/mcp_config.json

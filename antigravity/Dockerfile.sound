@@ -1,18 +1,14 @@
 # Antigravity CLI (agy) com suporte a microfone e funções de fala (:sound)
 # O agy é um binário NATIVO (Go), instalado via script — não usa Node.
-# A base indicada é uma imagem mínima de SO (debian slim), sem runtime de Node.
 FROM debian:trixie-slim
 
-# Variáveis de ambiente consolidadas em bloco único (evita 1 camada intermediária por instrução ENV)
+# Variáveis de ambiente consolidadas
 ENV PATH="/dotnet-tools:${PATH}" \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1 \
     DOTNET_RUNNING_IN_CONTAINER=true \
     GEMINI_FORCE_FILE_STORAGE=true \
     TZ=America/Sao_Paulo \
-    SSH_CLIENT="203.0.113.1 50000 22" \
-    SSH_CONNECTION="203.0.113.1 50000 203.0.113.2 22" \
-    SSH_TTY="/dev/pts/0" \
     LANG=pt_BR.UTF-8 \
     LANGUAGE=pt_BR:pt:en \
     LC_ALL=pt_BR.UTF-8 \
@@ -20,56 +16,18 @@ ENV PATH="/dotnet-tools:${PATH}" \
     VISUAL=vim \
     AGY_VARIANT=sound
 
-# Instala ferramentas do sistema, utilitários, áudio, .NET SDK 10, yq, usuário e configurações em camada única
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl jq git ripgrep ca-certificates file procps \
-        tzdata locales bind9-dnsutils traceroute iputils-ping \
-        unzip zip dos2unix gawk less zstd sudo \
-        shellcheck sqlfluff vim nano \
-        alsa-utils pulseaudio-utils pipewire-bin libasound2t64 libpulse0 && \
-    echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen && \
-    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
-    locale-gen && \
-    update-alternatives --set editor /usr/bin/vim.basic && \
-    ln -snf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime && \
-    echo "America/Sao_Paulo" > /etc/timezone && \
-    mkdir -p /etc/vim && \
-    printf '" Suporte nativo a UTF-8 e acentuacao no Vim\nset encoding=utf-8\nset fileencoding=utf-8\nset fileencodings=utf-8,latin1\nset termencoding=utf-8\nset nocompatible\nsyntax on\n' > /etc/vim/vimrc.local && \
-    curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq && \
-    chmod +x /usr/local/bin/yq && \
-    curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb && \
-    dpkg -i /tmp/packages-microsoft-prod.deb && \
-    rm /tmp/packages-microsoft-prod.deb && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends dotnet-sdk-10.0 && \
-    dotnet tool install --tool-path /dotnet-tools dotnet-trace && \
-    dotnet tool install --tool-path /dotnet-tools dotnet-counters && \
-    dotnet tool install --tool-path /dotnet-tools dotnet-dump && \
-    dotnet tool install --tool-path /dotnet-tools roslynator.dotnet.cli && \
-    dotnet tool install --tool-path /dotnet-tools csharp-ls && \
-    groupadd --gid 1100 antigravity && \
-    useradd --uid 1100 --gid antigravity -G audio --shell /bin/bash --create-home antigravity && \
-    echo "antigravity ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/antigravity && \
-    chmod 0440 /etc/sudoers.d/antigravity && \
-    mkdir -p /etc/antigravity/skills /workspace && \
-    chown -R antigravity:antigravity /workspace /dotnet-tools && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Instala o CLI do Antigravity (binário nativo "agy")
 ARG AGY_VERSION=latest
 LABEL org.opencontainers.image.version="${AGY_VERSION}"
-RUN echo "Instalando Antigravity CLI (versão: ${AGY_VERSION})..." && \
-    curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- -d /usr/local/bin
 
-# settings.json seedado com permissões de consulta, modelo e toolPermission da sessão.
+# Provisionamento completo do SO, áudio, .NET 10, usuário e CLI em passo único
+COPY scripts/setup-base.sh /tmp/setup-base.sh
+RUN bash /tmp/setup-base.sh --sound --version "${AGY_VERSION}" && rm -f /tmp/setup-base.sh
+
+# Configurações semeadas e skills
 COPY settings.json /etc/antigravity/settings.json
-
-# Skill informando o ambiente do container ao agente
 COPY skills/container-ambiente/ /etc/antigravity/skills/container-ambiente/
 
-# Entrypoint com permissão de execução via flag --chmod no COPY
+# Entrypoint com permissão de execução
 COPY --chmod=755 entrypoint.sh /usr/local/bin/antigravity-entrypoint.sh
 
 WORKDIR /workspace
