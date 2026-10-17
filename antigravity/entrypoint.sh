@@ -22,22 +22,26 @@ mkdir -p "$SKILLS_DIR"
 # Marca no volume persistente compartilhado qual variante está em execução (base, sound, rea)
 echo "${AGY_VARIANT:-base}" > "$SEED_DIR/variant"
 
-if [ -f "$SETTINGS" ]; then
-    # Mescla as configurações padrão de permissões, modelo e opções de execução,
-    # preservando regras e personalizações customizadas do usuário.
-    if [ -f /etc/antigravity/settings.json ]; then
-        jq -M -s '
+# Mescla configurações padrão de permissões, modelo e chaveamento de autenticação
+if [ -f /etc/antigravity/settings.json ]; then
+    if [ -f "$SETTINGS" ]; then
+        jq -M -s --arg key "${GEMINI_API_KEY:-}" '
           .[0] as $defaults |
           .[1] as $user |
-          ($defaults * $user) |
-          .permissions.allow = (($defaults.permissions.allow // []) + ($user.permissions.allow // []) | unique) |
-          .permissions.ask = (($defaults.permissions.ask // []) + ($user.permissions.ask // []) | unique)
+          (($defaults * $user) |
+           .permissions.allow = (($defaults.permissions.allow // []) + ($user.permissions.allow // []) | unique) |
+           .permissions.ask = (($defaults.permissions.ask // []) + ($user.permissions.ask // []) | unique)) |
+          if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
         ' /etc/antigravity/settings.json "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+    else
+        jq -M --arg key "${GEMINI_API_KEY:-}" '
+          if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
+        ' /etc/antigravity/settings.json > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
     fi
-else
-    if [ -f /etc/antigravity/settings.json ]; then
-        cp /etc/antigravity/settings.json "$SETTINGS"
-    fi
+elif [ -f "$SETTINGS" ]; then
+    jq -M --arg key "${GEMINI_API_KEY:-}" '
+      if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
+    ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
 fi
 
 if [ -d /etc/antigravity/skills ]; then
@@ -45,64 +49,96 @@ if [ -d /etc/antigravity/skills ]; then
     for skill_path in /etc/antigravity/skills/*; do
         if [ -d "$skill_path" ]; then
             sname="$(basename "$skill_path")"
-            cp -r "$skill_path" "$SKILLS_DIR/$sname"
-            cp -r "$skill_path" "$HOME/.gemini/config/skills/$sname"
+            mkdir -p "$SKILLS_DIR/$sname" "$HOME/.gemini/config/skills/$sname"
+            cp -a "$skill_path/." "$SKILLS_DIR/$sname/"
+            cp -a "$skill_path/." "$HOME/.gemini/config/skills/$sname/"
         fi
     done
+fi
+
+# Enforcement obrigatório das regras do container (Zero Secret Leak)
+CONFIG_DIR="$HOME/.gemini/config"
+USER_AGENTS="$CONFIG_DIR/AGENTS.md"
+mkdir -p "$CONFIG_DIR"
+
+if [ -d /etc/antigravity/rules ]; then
+    mkdir -p "$CONFIG_DIR/rules"
+    cp -f /etc/antigravity/rules/* "$CONFIG_DIR/rules/" 2>/dev/null || true
+fi
+
+if [ ! -f "$USER_AGENTS" ]; then
+    if [ -f /etc/antigravity/AGENTS.md ]; then
+        cp /etc/antigravity/AGENTS.md "$USER_AGENTS"
+    fi
+else
+    # Se o arquivo já existe no volume persistente mas a regra foi removida, restaura no topo
+    if ! grep -q "Zero Secret Leak" "$USER_AGENTS" 2>/dev/null; then
+        if [ -f /etc/antigravity/rules/zero-secret-leak.md ]; then
+            TMP_AGENTS=$(mktemp)
+            cat /etc/antigravity/rules/zero-secret-leak.md > "$TMP_AGENTS"
+            printf "\n\n" >> "$TMP_AGENTS"
+            cat "$USER_AGENTS" >> "$TMP_AGENTS"
+            mv "$TMP_AGENTS" "$USER_AGENTS"
+        fi
+    fi
 fi
 
 MCP_CFG="$HOME/.gemini/config/mcp_config.json"
 mkdir -p "$(dirname "$MCP_CFG")"
 [ -s "$MCP_CFG" ] || echo '{}' > "$MCP_CFG"
 
-if [ -f /etc/antigravity/mcp_config.json ]; then
-    jq -s '.[0] * .[1]' "$MCP_CFG" /etc/antigravity/mcp_config.json > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
-fi
+BASE_MCP=""
+[ -f /etc/antigravity/mcp_config.json ] && BASE_MCP="/etc/antigravity/mcp_config.json"
 
-# Chaveamento dinâmico: API Key (Gemini) vs OAuth (conta Google)
-if [ -n "$GEMINI_API_KEY" ]; then
-    jq '.modelProvider = "gemini"' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
-else
-    # Sem API key: remove modelProvider = "gemini" se presente, garantindo fluxo OAuth
-    if jq -e '.modelProvider == "gemini"' "$SETTINGS" >/dev/null 2>&1; then
-        jq 'del(.modelProvider)' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
-    fi
-fi
+# Consolida merge de MCPs padrão e injeção dinâmica de gateway MCP via ambiente
+jq -M -s \
+  --arg gw_url "${MCP_GATEWAY_URL:-}" \
+  --arg gw_token "${MCP_TOKEN:-}" '
+    (if length > 1 then .[0] * .[1] else .[0] end) |
+    if ($gw_url | length > 0) then
+      .mcpServers.gateway = {
+        serverUrl: $gw_url
+      } + (if ($gw_token | length > 0) then { headers: { Authorization: ("Bearer " + $gw_token) } } else {} end)
+    else . end
+' "$MCP_CFG" ${BASE_MCP:+"$BASE_MCP"} > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
 
-# Injeção dinâmica de servidor ou gateway MCP via ambiente
-if [ -n "$MCP_GATEWAY_URL" ]; then
+if [ "${AGY_VARIANT:-base}" = "rea" ]; then
+    CLEANED_REA=0
+    cleanup_rea() {
+        [ "$CLEANED_REA" -eq 1 ] && return 0
+        CLEANED_REA=1
 
-    FRAG=$(mktemp)
-    if [ -n "$MCP_TOKEN" ]; then
-        cat > "$FRAG" <<EOF
-{
-  "mcpServers": {
-    "gateway": {
-      "serverUrl": "$MCP_GATEWAY_URL",
-      "headers": {
-        "Authorization": "Bearer $MCP_TOKEN"
-      }
+        # 1. Remove servidor MCP rea do mcp_config.json
+        if [ -f "$MCP_CFG" ] && grep -q '"rea"' "$MCP_CFG" 2>/dev/null; then
+            jq 'del(.mcpServers.rea)' "$MCP_CFG" > "$MCP_CFG.tmp" 2>/dev/null && mv "$MCP_CFG.tmp" "$MCP_CFG"
+        fi
+
+        # 2. Remove a skill reverse-engineering do volume persistente
+        rm -rf "$HOME/.gemini/config/skills/reverse-engineering" \
+               "$SKILLS_DIR/reverse-engineering" 2>/dev/null || true
+
+        # 3. Remove permissões do rea do settings.json
+        if [ -f "$SETTINGS" ] && grep -q '"command(rea' "$SETTINGS" 2>/dev/null; then
+            jq '.permissions.allow = [.permissions.allow[] | select(. != "command(rea)" and . != "command(rea *)")]' "$SETTINGS" > "$SETTINGS.tmp" 2>/dev/null && mv "$SETTINGS.tmp" "$SETTINGS"
+        fi
     }
-  }
-}
-EOF
-    else
-        cat > "$FRAG" <<EOF
-{
-  "mcpServers": {
-    "gateway": {
-      "serverUrl": "$MCP_GATEWAY_URL"
-    }
-  }
-}
-EOF
+
+    # Injeta permissões para comandos do rea no settings.json temporariamente
+    if [ -f "$SETTINGS" ]; then
+        jq '.permissions.allow = ((.permissions.allow // []) + ["command(rea)", "command(rea *)"] | unique)' "$SETTINGS" > "$SETTINGS.tmp" 2>/dev/null && mv "$SETTINGS.tmp" "$SETTINGS"
     fi
-    jq -s '.[0] * .[1]' "$MCP_CFG" "$FRAG" > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
-    rm -f "$FRAG"
+
+    trap cleanup_rea EXIT INT TERM HUP
 fi
 
 if [ -z "$GEMINI_API_KEY" ] && [ ! -f "$SEED_DIR/antigravity-oauth-token" ]; then
     echo "[entrypoint] OAuth sem sessão ainda: rode 'agy auth login' (URL + código) ou apenas 'agy' e complete o login no terminal." >&2
 fi
 
-exec agy "$@"
+if [ "${AGY_VARIANT:-base}" = "rea" ]; then
+    agy "$@"
+    EXIT_CODE=$?
+    exit $EXIT_CODE
+else
+    exec agy "$@"
+fi

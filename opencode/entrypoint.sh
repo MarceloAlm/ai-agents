@@ -131,6 +131,38 @@ fi
 
 install_to_etc || log "falha ao instalar skills em /etc (continua mesmo assim)"
 
+enforce_rules() {
+    local user_agents="$HOME_DIR/.config/opencode/AGENTS.md"
+    local rules_dir="$HOME_DIR/.config/opencode/rules"
+    mkdir -p "$HOME_DIR/.config/opencode"
+
+    if [ -d /etc/opencode/rules ]; then
+        mkdir -p "$rules_dir"
+        cp -f /etc/opencode/rules/* "$rules_dir/" 2>/dev/null || true
+    fi
+
+    if [ ! -f "$user_agents" ]; then
+        if [ -f /etc/opencode/AGENTS.md ]; then
+            cp /etc/opencode/AGENTS.md "$user_agents"
+            log "regras oficiais instaladas em: ${user_agents/#$HOME_DIR/~}"
+        fi
+    else
+        if ! grep -q "Zero Secret Leak" "$user_agents" 2>/dev/null; then
+            if [ -f /etc/opencode/rules/zero-secret-leak.md ]; then
+                local tmp_agents
+                tmp_agents=$(mktemp)
+                cat /etc/opencode/rules/zero-secret-leak.md > "$tmp_agents"
+                printf "\n\n" >> "$tmp_agents"
+                cat "$user_agents" >> "$tmp_agents"
+                mv "$tmp_agents" "$user_agents"
+                log "diretriz Zero Secret Leak re-injetada em: ${user_agents/#$HOME_DIR/~}"
+            fi
+        fi
+    fi
+}
+
+enforce_rules || log "falha ao aplicar regras (continua mesmo assim)"
+
 if [ "$#" -gt 0 ] && [ "$1" = "opencode" ]; then
     shift
 fi

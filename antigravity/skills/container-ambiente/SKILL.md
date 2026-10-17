@@ -1,75 +1,36 @@
 ---
 name: container-ambiente
 description: >-
-  Descreve o ambiente onde o agente Antigravity (CLI agy) roda dentro de um
-  container isolado (imagem antigravity). Use para saber quais ferramentas
-  existem na imagem, autonomia de consultas e leituras, permissão de sudo
-  para instalações efêmeras, pastas persistentes (/workspace e /home), como
-  criar skills personalizadas em diretórios separados para manter especializações
-  dos usuários sem ser sobrescrito pelos updates de boot, e como sugerir
-  criação de variantes quando ferramentas forem recorrentes.
+  Descreve a infraestrutura técnica e o catálogo de ferramentas do container
+  isolado do Antigravity CLI (agy). Use para consultar as ferramentas
+  disponíveis, variáveis de variante e o mapeamento de volumes persistentes.
 ---
 
-# Ambiente de execução (container isolado)
+# Ambiente de Execução (Container Antigravity)
 
-O agente Antigravity (CLI `agy`) roda **dentro de um container isolado** do
-restante do sistema (Podman), não no host.
+O agente Antigravity (CLI `agy`) roda **dentro de um container isolado** do host (Debian 13 / Trixie).
 
-## Contexto
+## Contexto Técnico
 
-- **Finalidade:** Desenvolvimento de sistemas com **.NET 10 SDK** (C#/F#) e análise/diagnóstico de **logs de servidores**.
-- **Isolado do host:** Sem cliente SSH. O código é montado localmente em `/workspace`.
-- **Acesso à internet:** disponível para consultas web e requisições HTTP (`curl`).
-- **Usuário:** `antigravity` (uid/gid 1100, `--userns=keep-id:uid=1100,gid=1100`), com **`sudo` sem senha**.
-- **Variante ativa:** Informada na variável `$AGY_VARIANT` e registrada em `~/.gemini/antigravity-cli/variant` (`base`, `sound` ou `rea`).
+- **Finalidade:** Desenvolvimento com **.NET 10 SDK** (C#/F#), linters, análise de código e diagnóstico de rede/logs.
+- **Usuário:** `antigravity` (UID/GID 1100, `--userns=keep-id:uid=1100,gid=1100`), com `sudo` sem senha.
+- **Variante ativa:** Definida em `$AGY_VARIANT` e registrada em `~/.gemini/antigravity-cli/variant` (`base`, `sound` ou `rea`).
+- **Autenticação:** Padrão OAuth Google (Google AI Pro/Ultra) persistido no `FileKeychain` (`antigravity-oauth-token`) via volume persistente. Aceita `GEMINI_API_KEY` opcional.
+- **Diretrizes e Segurança:** Consulte o arquivo global [`AGENTS.md`](file:///workspace/antigravity/AGENTS.md) para políticas permanentes de autonomia, sigilo de credenciais (Zero Secret Leak), localização de código e restrições.
 
-## Autonomia
-
-- **Liberdade total para consultas.** Explore proativamente código (`read_file`), web (`read_url`), logs e ferramentas de diagnóstico sem pedir autorização.
-
-## Autenticação
-
-- **Padrão: OAuth** com conta do Google (Google AI Pro/Ultra). Sem sessão → `agy auth login` (URL + código).
-- **API key (opcional):** Se `GEMINI_API_KEY` for passada via ambiente e `"modelProvider": "gemini"` estiver no `settings.json`, usará chave de API.
-- **Persistência:** token em `~/.gemini/antigravity-cli/antigravity-oauth-token` (volume `antigravity-home`, `GEMINI_FORCE_FILE_STORAGE=true`).
-
-## Persistência
+## Persistência de Dados
 
 | Caminho | Persiste? | Uso |
 |---|---|---|
-| `/workspace` | **Sim** | Projeto atual (bind mount do host) |
-| `/home/antigravity` | **Sim** | Volume `antigravity-home` (settings, skills, histórico) |
-| `/tmp` | **Não** | Escrita livre, conteúdo efêmero |
+| `/workspace` | **Sim** | Código do projeto (montado do host) |
+| `/home/antigravity` | **Sim** | Volume persistente `antigravity-home` (settings, tokens, skills de usuário) |
+| `/tmp` | **Não** | Diretório efêmero para arquivos temporários de análise |
 
-## Skills Personalizadas e Atualizações de Boot
+## Catálogo de Ferramentas Disponíveis
 
-- **Atualizações automáticas no boot:** A skill oficial `container-ambiente` é mantida pela imagem do container e atualizada a cada inicialização (`entrypoint.sh`). **Nunca altere ou adicione customizações pessoais dentro de `container-ambiente/`**, pois essa pasta é sobrescrita pelo entrypoint a cada boot do container.
-- **Como criar skills do usuário:** Para registrar procedimentos, regras de negócio, runbooks ou especializações próprias:
-  - Crie sempre uma **nova skill em diretório separado**:
-    - **Global no usuário (persistida no `/home`):**  
-      `~/.gemini/config/skills/<nome-da-skill>/SKILL.md`
-    - **Específica do projeto (persistida no `/workspace`):**  
-      `.agents/skills/<nome-da-skill>/SKILL.md`
-  - Dessa forma, as especializações do usuário ficam protegidas e persistidas permanentemente, ao mesmo tempo em que o container continua recebendo atualizações da skill base do projeto sem conflitos.
+Consulte a [lista detalhada de utilitários](references/ferramentas.md) para especificações completas de cada ferramenta instalada.
 
-## Instalação de ferramentas
-
-- **`sudo` sem senha** para instalações efêmeras durante a sessão (`sudo apt-get install -y <pacote>`).
-- **Container efêmero (`--rm`):** instalações no sistema raiz não sobrevivem ao encerramento.
-- **Ferramentas recorrentes?** Proponha uma **nova variante de container** (Dockerfile + build.sh próprios).
-
-## Restrições
-
-- Sem acesso SSH a servidores/Git (`git@...`). Apenas workspace local e HTTP/curl.
-- `/etc/ssl/certs` vem do pacote `ca-certificates` da imagem, não do host.
-
-## Ferramentas disponíveis
-
-Consulte a [lista completa de ferramentas](references/ferramentas.md) para
-detalhes de cada utilitário instalado na imagem.
-
-Resumo rápido: `vim` (editor padrão), `nano`, `dotnet` (SDK 10),
-`csharp-ls`, `roslynator`, `shellcheck`, `yq`, `sqlfluff`, `git`, `curl`,
-`jq`, `rg`, `gawk`, `sed`, `grep`, `dig`, `dotnet-dump/trace/counters`,
-`dos2unix`, `zip/unzip`, `zcat/zgrep/zstd`, `file`, `ps`, `top`, `ping`,
-`traceroute`.
+- **Desenvolvimento & Diagnóstico .NET:** `dotnet` (.NET 10 SDK), `csharp-ls`, `roslynator`, `dotnet-dump`, `dotnet-trace`, `dotnet-counters`.
+- **Linters & Qualidade de Código:** `shellcheck` (Shell/Bash), `sqlfluff` (SQL), `yq` (YAML/JSON processador Go).
+- **Inspeção & Manipulação de Arquivos:** `vim` (editor padrão), `ripgrep` (`rg`), `jq`, `gawk`, `sed`, `grep`, `file`, `dos2unix`, `zip`/`unzip`, `zstd`, `zcat`/`zgrep`.
+- **Rede & Diagnóstico de Servidor:** `curl`, `git`, `dig` (bind9-dnsutils), `traceroute`, `ping` (iputils-ping), `procps` (`ps`, `top`).

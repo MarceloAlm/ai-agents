@@ -42,7 +42,7 @@
 3. **SQL (MySQL e SQL Server):** Valide queries e migrations com `sqlfluff lint <arquivo.sql> --dialect mysql` ou `--dialect tsql` para evitar misturar dialetos proprietários.
 4. **C# / .NET:** Use `roslynator analyze` e `csharp-ls` para obter diagnósticos semânticos estruturados do compilador Roslyn.
 5. **DNS:** Prefira sempre `dig` sobre `nslookup`. O `dig` oferece saída estruturada, controle granular de flags e é o padrão de referência para troubleshooting de rede.
-6. **Editores:** O `vim` está configurado como editor padrão do ambiente (`EDITOR=vim`, `VISUAL=vim` e link prioritário `/usr/bin/editor`). O `nano` também está disponível para quem preferir um editor mais simples.
+6. **Editores:** O `vim` está configurado como editor padrão do ambiente (`EDITOR=vim`, `VISUAL=vim` e link prioritário `/usr/bin/editor`). O `nano` também está disponível para quem preferir um editor alternativo.
 
 Se a lista real divergir daqui (ex.: nova versão da imagem), confirme com
 `command -v <nome>` antes de depender da ferramenta.

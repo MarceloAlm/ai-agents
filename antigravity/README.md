@@ -38,9 +38,7 @@ cd antigravity
 ./build.sh rea 1.3.0
 ```
 
-O `build.sh` consulta automaticamente a versão mais recente disponível no manifesto oficial do Antigravity CLI e repassa como `--build-arg AGY_VERSION=<versão>`. Isso invalida apenas a camada de download do `agy` no Podman (preservando o cache pesado do .NET SDK e pacotes Debian), garantindo que a nova versão seja efetivamente baixada e instalada.
-
-Além disso, os scripts `agy.sh` e `agy-sound.sh` verificam em tempo de execução se há uma nova versão disponível e exibem um aviso no terminal caso a imagem local esteja desatualizada (a verificação pode ser silenciada com `AGY_NO_UPDATE_CHECK=1`).
+O `build.sh` consulta automaticamente a versão mais recente disponível no manifesto oficial do Antigravity CLI e repassa como `--build-arg AGY_VERSION=<versão>`. Isso invalida apenas a camada de download do `agy` no Podman (preservando o cache pesado do .NET SDK e pacotes Debian), garantindo que a nova versão seja efetivamente baixada e instalada. Você também pode passar uma versão explícita como argumento (ex: `./build.sh 1.2.0`).
 
 
 ---

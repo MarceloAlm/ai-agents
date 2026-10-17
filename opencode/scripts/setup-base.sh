@@ -40,6 +40,10 @@ if [ -f /tmp/setup/entrypoint.sh ]; then
     install -m 755 /tmp/setup/entrypoint.sh /usr/local/bin/opencode-entrypoint.sh
 fi
 
+chown -R root:root /etc/opencode
+chmod -R 755 /etc/opencode
+find /etc/opencode -type f -exec chmod 644 {} +
+
 echo "==> [5/5] Limpeza de caches e arquivos temporários..."
 apt-get clean
 rm -rf /var/lib/apt/lists/* /root/.npm /root/.cache /var/cache/* /var/tmp/*

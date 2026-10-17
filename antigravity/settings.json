@@ -75,8 +75,6 @@
       "command(python3 *)",
       "command(pw-record)",
       "command(pw-record *)",
-      "command(rea)",
-      "command(rea *)",
       "command(readelf)",
       "command(readelf *)",
       "command(rg)",

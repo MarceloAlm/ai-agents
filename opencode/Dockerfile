@@ -3,8 +3,10 @@ FROM node:lts-slim
 ARG OPENCODE_VERSION=latest
 ENV OPENCODE_VARIANT=base
 
-# Skills do container
+# Skills e regras base do container
 COPY skills/container-ambiente/ /etc/opencode/skills/container-ambiente/
+COPY rules/ /etc/opencode/rules/
+COPY AGENTS.md /etc/opencode/AGENTS.md
 
 # Provisionamento completo da base e entrypoint em passo único
 COPY entrypoint.sh scripts/setup-base.sh /tmp/setup/

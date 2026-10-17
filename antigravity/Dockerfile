@@ -19,8 +19,10 @@ ENV PATH="/dotnet-tools:${PATH}" \
 ARG AGY_VERSION=latest
 LABEL org.opencontainers.image.version="${AGY_VERSION}"
 
-# Skills do container
+# Skills e regras base do container
 COPY skills/container-ambiente/ /etc/antigravity/skills/container-ambiente/
+COPY rules/ /etc/antigravity/rules/
+COPY AGENTS.md /etc/antigravity/AGENTS.md
 
 # Provisionamento completo do SO, ferramentas e assets em passo único
 COPY settings.json entrypoint.sh scripts/setup-base.sh /tmp/setup/

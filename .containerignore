@@ -7,6 +7,9 @@
 
 # Documentation & temporary archives
 *.md
+!**/AGENTS.md
+!**/rules/**
+!**/skills/**
 *.tar
 *.tar.gz
 *.zip
