@@ -118,6 +118,22 @@
       "read_url(*)"
     ],
     "ask": [
+      "read_file(*.env*)",
+      "read_file(*.kdbx)",
+      "read_file(*.key)",
+      "read_file(*.pem)",
+      "read_file(*.pfx)",
+      "read_file(*.p12)",
+      "read_file(*credentials*)",
+      "read_file(*htpasswd*)",
+      "read_file(*id_dsa*)",
+      "read_file(*id_ecdsa*)",
+      "read_file(*id_ed25519*)",
+      "read_file(*id_rsa*)",
+      "read_file(*secret*)",
+      "read_file(*secrets*)",
+      "read_file(*service-account*.json)",
+      "read_file(*token*)",
       "write_file(*)"
     ]
   },
