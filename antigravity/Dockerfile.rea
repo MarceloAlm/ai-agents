@@ -5,16 +5,20 @@ FROM antigravity:latest
 USER root
 
 ARG REA_VERSION=latest
+ARG SETUP_HASH=
 
-# Provisionamento das ferramentas de engenharia reversa via script
-COPY scripts/setup-rea.sh /tmp/setup-rea.sh
-RUN bash /tmp/setup-rea.sh "${REA_VERSION}" && rm -f /tmp/setup-rea.sh
+# Provisionamento das ferramentas de engenharia reversa via script montado por bind
+RUN --mount=type=bind,source=scripts/setup-rea.sh,target=/tmp/setup-rea.sh \
+    echo "setup:${SETUP_HASH}" && bash /tmp/setup-rea.sh "${REA_VERSION}"
 
 # Configuração do servidor MCP do REA para o Antigravity
 COPY mcp_config.rea.json /etc/antigravity/mcp_config.json
 
 # Adiciona a skill especializada de Engenharia Reversa
 COPY skills/reverse-engineering/ /etc/antigravity/skills/reverse-engineering/
+
+RUN chmod -R 755 /etc/antigravity \
+    && find /etc/antigravity -type f -exec chmod 644 {} +
 
 ENV AGY_VARIANT=rea
 

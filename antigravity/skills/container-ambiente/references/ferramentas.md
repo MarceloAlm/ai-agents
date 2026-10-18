@@ -5,7 +5,7 @@
 | `agy` | O próprio agente Antigravity CLI |
 | `vim` / `vi` | **Editor de texto padrão** do sistema (`$EDITOR`, `$VISUAL` e `/usr/bin/editor`) |
 | `nano` | Editor de texto simples alternativo |
-| `sudo` | Superusuário para instalações pontuais efêmeras |
+| `sudo` | Superusuário sem senha restrito ao gerenciamento de pacotes (`apt-get`/`apt`) |
 | `apt` / `apt-get` | Gerenciador de pacotes Debian (instalação em runtime) |
 | `dpkg` / `apt-cache` | Consulta de pacotes instalados e disponíveis |
 | `dotnet` (SDK 10) | Compilação, execução, testes e gerenciamento de projetos .NET 10 (C#/F#) |

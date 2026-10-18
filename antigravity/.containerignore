@@ -6,7 +6,9 @@
 .DS_Store
 
 # Documentation & temporary archives
+# (mantém AGENTS/rules/skills — negações valem por último)
 *.md
+**/*.md
 !AGENTS.md
 !rules/**
 !skills/**
@@ -21,8 +23,9 @@
 *.dump
 *.dmp
 
-# Host wrappers and build scripts (not needed inside container build context)
+# Host wrappers, build scripts and tests
 agy.sh
 agy-sound.sh
 agy-rea.sh
 build*.sh
+tests/

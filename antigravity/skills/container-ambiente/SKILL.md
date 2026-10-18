@@ -13,7 +13,7 @@ O agente Antigravity (CLI `agy`) roda **dentro de um container isolado** do host
 ## Contexto Técnico
 
 - **Finalidade:** Desenvolvimento com **.NET 10 SDK** (C#/F#), linters, análise de código e diagnóstico de rede/logs.
-- **Usuário:** `antigravity` (UID/GID 1100, `--userns=keep-id:uid=1100,gid=1100`), com `sudo` sem senha.
+- **Usuário:** `antigravity` (UID/GID 1100, `--userns=keep-id:uid=1100,gid=1100`), com `sudo` sem senha restrito ao gerenciamento de pacotes (`apt-get`/`apt`).
 - **Variante ativa:** Definida em `$AGY_VARIANT` e registrada em `~/.gemini/antigravity-cli/variant` (`base`, `sound` ou `rea`).
 - **Autenticação:** Padrão OAuth Google (Google AI Pro/Ultra) persistido no `FileKeychain` (`antigravity-oauth-token`) via volume persistente. Aceita `GEMINI_API_KEY` opcional.
 - **Diretrizes e Segurança:** Consulte o arquivo global [`AGENTS.md`](file:///workspace/antigravity/AGENTS.md) para políticas permanentes de autonomia, sigilo de credenciais (Zero Secret Leak), localização de código e restrições.
@@ -34,3 +34,13 @@ Consulte a [lista detalhada de utilitários](references/ferramentas.md) para esp
 - **Linters & Qualidade de Código:** `shellcheck` (Shell/Bash), `sqlfluff` (SQL), `yq` (YAML/JSON processador Go).
 - **Inspeção & Manipulação de Arquivos:** `vim` (editor padrão), `ripgrep` (`rg`), `jq`, `gawk`, `sed`, `grep`, `file`, `dos2unix`, `zip`/`unzip`, `zstd`, `zcat`/`zgrep`.
 - **Rede & Diagnóstico de Servidor:** `curl`, `git`, `dig` (bind9-dnsutils), `traceroute`, `ping` (iputils-ping), `procps` (`ps`, `top`).
+
+## Personalização de Skills / Registro de Preferências
+
+A skill `container-ambiente` é mantida pela imagem e sincronizada a cada boot. Não crie nem edite conteúdo diretamente dentro dela, pois será restaurado pelo ciclo de atualização.
+
+Para criar runbooks, regras personalizadas ou registrar preferências do usuário solicitadas durante as sessões:
+- **Global do usuário (persistida no volume):**  
+  `~/.gemini/config/skills/<nome-da-skill>/SKILL.md`
+- **Específica do projeto (versionada no repositório):**  
+  `.agents/skills/<nome-da-skill>/SKILL.md`

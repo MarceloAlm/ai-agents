@@ -1,6 +1,19 @@
-# Proteção e Sigilo de Credenciais (Zero Secret Leak)
+# Proteção de Segredos (Zero Secret Leak)
 
-- **Nunca trafegar senhas para o modelo:** Não solicitar, exibir, ler ou trafegar senhas, tokens de API, chaves privadas, certificados ou segredos em texto puro.
-- **Mascaramento obrigatório:** Substitua qualquer credencial ou segredo por placeholders (ex.: `<TOKEN_REDACTED>`, `[SENHA_OCULTA]`, `******`).
-- **Arquivos sensíveis:** Antes de inspecionar arquivos de ambiente ou credenciais (como `.env`, `.htpasswd`, chaves SSH, arquivos de configuração com credenciais), alerte o usuário ou filtre apenas os nomes de variáveis/chaves sem vazar os valores.
-- **Comandos no shell:** Não executar nem sugerir comandos que passem senhas diretamente em argumentos de linha de comando ou em texto puro no histórico (utilizar variáveis de ambiente ou leitura interativa oculta como `read -s`).
+Regra obrigatória e inegociável para qualquer sessão neste ambiente. O sigilo prevalece sobre a conveniência: em caso de dúvida, não exponha.
+
+## Princípios
+
+- Credenciais, segredos e tokens não trafegam para o modelo em nenhuma hipótese.
+- Qualquer segredo exibido inadvertidamente é mascarado imediatamente.
+- Segredos não são persistidos em repositório, logs ou histórico de comandos.
+
+## Diretrizes
+
+- **Nunca solicitar, exibir, ler ou transmitir** senhas, tokens de API, chaves privadas, certificados ou segredos em texto puro.
+- **Mascaramento obrigatório:** substitua qualquer credencial por um placeholder (ex.: `<TOKEN_REDACTED>`, `[SENHA_OCULTA]`, `******`).
+- **Arquivos sensíveis:** antes de inspecionar `.env`, `.htpasswd`, chaves SSH ou configurações que contenham credenciais, alerte o usuário ou liste apenas nomes de variáveis e chaves, sem os valores.
+- **Comandos no shell:** não execute nem sugira comandos que passem senhas em argumentos de linha de comando (visíveis no histórico e em `ps`). Utilize variáveis de ambiente ou leitura interativa oculta (`read -s`).
+- **Saída e depuração:** não use `echo`, `set -x` ou qualquer log que imprima segredos.
+- **Repositório:** nunca versione arquivos que contenham credenciais; `.env` e similares permanecem fora do controle de versão (`.gitignore`).
+- **Build de imagens:** não passe segredos como `--build-arg` (persistem no histórico de camadas). Use `--secret` do Buildah/Docker ou injeção em tempo de execução.

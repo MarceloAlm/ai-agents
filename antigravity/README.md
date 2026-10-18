@@ -190,19 +190,97 @@ O container injeta e mescla essa definição automaticamente no arquivo `~/.gemi
 | `git`, `curl`, `jq`, `ripgrep` (`rg`), `gawk`, `sed` | Manipulação de arquivos, chamadas HTTP e análise de logs |
 | `dos2unix`, `zstd`, `zcat`, `zgrep`, `file`, `procps` | Normalização de quebras de linha e inspeção de logs compactados |
 | `arecord` / `parec` / `pw-record` | Captura de microfone e gravação de áudio (variante `:sound`, comandos `/voice` e F5) |
-| `sudo` | Acesso superusuário sem senha para instalações pontuais efêmeras via `apt-get` |
+| `sudo` | Acesso superusuário sem senha restrito ao gerenciamento de pacotes (`apt-get`/`apt`) |
 
 ---
 
 ## Skills e Customizações do Usuário
 
-O container vem com a skill `container-ambiente` atualizada automaticamente a cada inicialização pelo `entrypoint.sh`.
+O container vem com a skill `container-ambiente` atualizada automaticamente a cada inicialização pelo ciclo de atualização.
 
 Para registrar runbooks, regras ou especializações próprias sem que sejam sobrescritas nos boots:
 - **Global do usuário (persistida no volume):**  
   `~/.gemini/config/skills/<nome-da-skill>/SKILL.md`
 - **Específica do projeto (versionada com seu repositório):**  
   `.agents/skills/<nome-da-skill>/SKILL.md`
+
+---
+
+## Política de Segurança (Zero Secret Leak)
+
+O container opera sob a política **Zero Secret Leak**, obrigatória e inegociável em qualquer sessão. O objetivo é impedir que credenciais, tokens, certificados ou segredos sejam expostos ao modelo, gravados em disco ou persistidos no histórico de comandos. O sigilo prevalece sobre a conveniência: em caso de dúvida, a instrução é não expor.
+
+### 1. Escopo
+
+Aplica-se a:
+- Sessões interativas e autônomas do agente (`agy`, `agy-sound`, `agy-rea`).
+- Prompts, respostas, ferramentas e comandos executados via shell.
+- Arquivos inspecionados ou gerados pelo container em `/workspace` e `/home/antigravity`.
+- Builds das imagens Podman/Docker.
+
+### 2. Princípios
+
+1. **Segredo não entra no contexto do modelo** em nenhuma hipótese.
+2. **Segredo não é persistido** em repositório, imagem, log ou histórico de comandos.
+3. **Credencial é injetada em tempo de execução**, nunca em hardcode.
+
+### 3. Recomendações e Diretrizes
+
+#### Injeção de credenciais
+- Utilize variáveis de ambiente ou gerenciadores de segredos.
+- Nunca faça hardcode de chaves em arquivos versionados.
+- No Antigravity, sessões OAuth e tokens são gravados em `~/.gemini/antigravity-cli/antigravity-oauth-token` dentro do volume persistente `antigravity-home`, nunca na imagem.
+
+#### Arquivos sensíveis
+- Mantenha `.env`, `.pem`, `.key` e afins fora do controle de versão (`.gitignore`).
+- O `.containerignore` (e `.dockerignore`) deste repositório já exclui arquivos de ambiente e chaves do contexto de build.
+
+#### Build de imagens (Podman/Docker)
+- **Nunca** passe credenciais como `--build-arg`: elas persistem no histórico de camadas da imagem.
+- Não fixe chaves em instruções `ENV` ou `COPY` durante o build.
+
+#### Comandos e logs
+- Nunca passe senhas em argumentos de linha de comando (visíveis em `ps` e no histórico). Use `read -s` ou variáveis de ambiente.
+- Evite `set -x` em scripts que lidam com credenciais; mascare qualquer saída sensível.
+- Mascare imediatamente qualquer credencial exibida inadvertidamente com um placeholder (ex.: `<TOKEN_REDACTED>`, `[SENHA_OCULTA]`, `******`).
+
+#### Volumes persistentes
+- O volume `antigravity-home` armazena o token OAuth e históricos do agente. Trate-o como sensível: não exporte nem versione seu conteúdo.
+
+### 4. Em Caso de Vazamento Inadvertido
+
+1. Revogue ou rotacione a credencial exposta imediatamente.
+2. Comunique o incidente às partes afetadas.
+3. Audite o histórico (`git log`, histórico de camadas) para localizar o vazamento.
+4. Inclua a regra ou barreira técnica correspondente para prevenir recorrência.
+
+### 5. Gates de Permissão (Defesa em Profundidade)
+
+A política conta com enforcement técnico configurado em [`settings.json`](settings.json). Enquanto a leitura geral do workspace é permitida para autonomia do agente, arquivos sensíveis disparam solicitação de confirmação (`ask`):
+
+| Padrão do Gate (`ask`) | Recurso Protegido |
+|---|---|
+| `read_file(*.env*)` | Arquivos de ambiente e variáveis sensíveis |
+| `read_file(*.kdbx)` | Bancos de dados de senhas Keepass |
+| `read_file(*.key)` | Chaves criptográficas privadas |
+| `read_file(*.pem)` | Certificados e chaves PEM |
+| `read_file(*.pfx)` / `read_file(*.p12)` | Certificados PKCS#12 com chaves privadas |
+| `read_file(*credentials*)` | Arquivos de credenciais de nuvem e serviços |
+| `read_file(*htpasswd*)` | Hashes de senhas web |
+| `read_file(*id_rsa*)` / `read_file(*id_ed25519*)` | Chaves SSH privadas |
+| `read_file(*id_ecdsa*)` / `read_file(*id_dsa*)` | Chaves SSH legadas |
+| `read_file(*secret*)` / `read_file(*secrets*)` | Arquivos com denominação de segredos |
+| `read_file(*service-account*.json)` | Chaves de service account (GCP e afins) |
+| `read_file(*token*)` | Arquivos com tokens salvos |
+| `write_file(*)` | Qualquer escrita de arquivo requer confirmação |
+
+### 6. Referências Internas
+
+- **Regras canônicas:** [`rules/zero-secret-leak.md`](rules/zero-secret-leak.md) e [`AGENTS.md`](AGENTS.md), copiados no build para `/etc/antigravity/` (imutáveis em runtime).
+- **Atualização do perfil:** [`update/run.sh`](update/run.sh) regenera `~/.gemini/config/AGENTS.md` a cada inicialização a partir de `/etc/antigravity/AGENTS.md`. Artefatos obsoletos (`~/.gemini/config/rules/` e `~/.gemini/antigravity-cli/skills/`) são limpos automaticamente.
+- **Sincronização de skills:** [`update/run.sh`](update/run.sh) delega para [`update/skills.sh`](update/skills.sh), com manifesto de hashes SHA-256 e backup de edições em `skills-custom/`.
+- **Privilégio mínimo:** [`scripts/setup-base.sh`](scripts/setup-base.sh) com allowlist `Cmnd_Alias` validada com `visudo` no build.
+- **Testes automatizados:** [`tests/run.sh`](tests/run.sh) valida sintaxe de scripts, integridade de JSON, paridade da política (R5) e sintaxe do sudoers.
 
 ---
 

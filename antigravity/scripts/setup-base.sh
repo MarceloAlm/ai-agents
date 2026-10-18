@@ -7,7 +7,8 @@ AGY_VERSION="${1:-latest}"
 echo "==> [1/6] Configurando repositórios (Debian + Microsoft)..."
 apt-get update
 apt-get install -y --no-install-recommends curl ca-certificates
-curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb
+DEBIAN_VER="$(. /etc/os-release && echo "${VERSION_ID%%.*}")"
+curl -fsSL "https://packages.microsoft.com/config/debian/${DEBIAN_VER}/packages-microsoft-prod.deb" -o /tmp/packages-microsoft-prod.deb
 dpkg -i /tmp/packages-microsoft-prod.deb
 rm -f /tmp/packages-microsoft-prod.deb
 
@@ -45,23 +46,20 @@ dotnet tool install --tool-path /dotnet-tools csharp-ls
 echo "==> [5/6] Criando usuário antigravity (UID 1100), permissões e assets..."
 groupadd --gid 1100 antigravity
 useradd --uid 1100 --gid antigravity --shell /bin/bash --create-home antigravity
-echo "antigravity ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/antigravity
-chmod 0440 /etc/sudoers.d/antigravity
+# Sudo mínimo: só instalações pontuais efêmeras (apt/apt-get), conforme o SKILL
+# container-ambiente. Todo o resto exige senha; a conta não tem, logo é negado.
+# Acesso root irrestrito no host segue via: podman exec -u root <container>.
+cat << 'EOF' > /tmp/antigravity.sudoers
+Cmnd_Alias APTGET = /usr/bin/apt-get install *, /usr/bin/apt-get update, /usr/bin/apt-get upgrade *, /usr/bin/apt-get autoremove *, /usr/bin/apt-get autoclean, /usr/bin/apt-get clean
+Cmnd_Alias APT = /usr/bin/apt install *, /usr/bin/apt update, /usr/bin/apt upgrade *, /usr/bin/apt autoremove *, /usr/bin/apt autoclean, /usr/bin/apt clean
+antigravity ALL=(ALL) NOPASSWD: APTGET, APT
+EOF
+/usr/sbin/visudo -cf /tmp/antigravity.sudoers
+install -m 0440 /tmp/antigravity.sudoers /etc/sudoers.d/antigravity
+rm -f /tmp/antigravity.sudoers
 
-mkdir -p /etc/antigravity/skills /etc/antigravity/rules /workspace
+mkdir -p /etc/antigravity/skills /etc/antigravity/rules /etc/antigravity/update /workspace
 chown -R antigravity:antigravity /workspace /dotnet-tools
-
-# Posiciona configurações e entrypoint se fornecidos no diretório de setup
-if [ -f /tmp/setup/settings.json ]; then
-    cp /tmp/setup/settings.json /etc/antigravity/settings.json
-fi
-if [ -f /tmp/setup/entrypoint.sh ]; then
-    install -m 755 /tmp/setup/entrypoint.sh /usr/local/bin/antigravity-entrypoint.sh
-fi
-
-chown -R root:root /etc/antigravity
-chmod -R 755 /etc/antigravity
-find /etc/antigravity -type f -exec chmod 644 {} +
 
 echo "==> [6/6] Instalando Antigravity CLI (versão: $AGY_VERSION)..."
 curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- -d /usr/local/bin

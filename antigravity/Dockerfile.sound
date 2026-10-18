@@ -4,9 +4,12 @@ FROM antigravity:latest
 
 USER root
 
-# Provisionamento das bibliotecas de áudio via script modular
-COPY scripts/setup-sound.sh /tmp/setup-sound.sh
-RUN bash /tmp/setup-sound.sh && rm -f /tmp/setup-sound.sh
+# Hash do script de setup para invalidação de cache
+ARG SETUP_HASH=
+
+# Provisionamento das bibliotecas de áudio via script modular montado por bind
+RUN --mount=type=bind,source=scripts/setup-sound.sh,target=/tmp/setup-sound.sh \
+    echo "setup:${SETUP_HASH}" && bash /tmp/setup-sound.sh
 
 ENV AGY_VARIANT=sound
 
