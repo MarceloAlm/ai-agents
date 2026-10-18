@@ -1,167 +1,21 @@
 #!/bin/bash
-# Sincroniza as skills do projeto com a pasta de skills do usuário (/home) e
-# instala o estado efetivo em /etc/opencode/skills — que é o local com maior
-# precedência no opencode e que o agente carrega de fato.
-#
-# Marcação de variante:
-#  Registra a variante ativa (base, dotnet, ml) em ~/.config/opencode/variant
+# Entrypoint do container: delega as atualizações do perfil aos scripts de
+# update da imagem (/etc/opencode/update/, versionados por
+# /etc/opencode/.image-version) e inicia o opencode.
+# /etc/opencode é somente-leitura em runtime — só o Dockerfile o atualiza.
 set -u
 
 log() { printf '[entrypoint] %s\n' "$*" >&2; }
 
 HOME_DIR="${HOME:?HOME não definida}"
-
-SKILLS_HOME="${SKILLS_HOME:-$HOME_DIR/.config/opencode/skills}"
-SKILLS_CUSTOM="${SKILLS_CUSTOM:-$HOME_DIR/.config/opencode/skills-custom}"
-SKILLS_ETC="${SKILLS_ETC:-/etc/opencode/skills}"
-MANIFEST="${SKILLS_MANIFEST:-$HOME_DIR/.config/opencode/.skill-manifest.txt}"
-INSTALL_ETC="${SKILLS_INSTALL_ETC:-1}"
-
-# Marca a variante em execução no volume compartilhado
 mkdir -p "$HOME_DIR/.config/opencode"
-echo "${OPENCODE_VARIANT:-base}" > "$HOME_DIR/.config/opencode/variant"
 
-hash_of() {
-    sha256sum "$1" 2>/dev/null | awk '{print $1}'
-}
-
-pick_source() {
-    local d
-    for d in \
-        /workspace/opencode/skills \
-        /workspace/skills \
-        "$SKILLS_ETC"; do
-        if [ -d "$d" ]; then
-            echo "$d"
-            return 0
-        fi
-    done
-    echo ""
-}
-
-prev_manifest_hash() {
-    local rel="$1"
-    [ -f "$MANIFEST" ] && awk -v r="$rel" '$2==r {print $1; exit}' "$MANIFEST" || true
-}
-
-sync_file() {
-    local src="$1" rel="$2"
-    local dst="$SKILLS_HOME/$rel"
-    local sh dh prev stamp bname
-    sh=$(hash_of "$src")
-    [ -z "$sh" ] && return 0
-
-    mkdir -p "$(dirname "$dst")"
-    if [ -f "$dst" ]; then
-        dh=$(hash_of "$dst")
-        if [ "$dh" = "$sh" ]; then
-            : # já idêntica à fonte, nada a fazer
-        else
-            prev=$(prev_manifest_hash "$rel")
-            if [ -n "$prev" ] && [ "$prev" = "$dh" ]; then
-                cp "$src" "$dst" || return 1
-                log "atualizada: $rel"
-            else
-                stamp=$(date +%Y%m%d-%H%M%S)
-                mkdir -p "$SKILLS_CUSTOM/$(dirname "$rel")"
-                bname="$SKILLS_CUSTOM/$rel.$stamp.custom"
-                cp "$dst" "$bname" || return 1
-                log "personalização preservada em: ${bname/#$HOME_DIR/~}"
-                cp "$src" "$dst" || return 1
-                log "versão oficial reinstalada: $rel"
-            fi
-        fi
-    else
-        cp "$src" "$dst" || return 1
-        log "instalada: $rel"
-    fi
-    echo "$sh  $rel" >> "$MANIFEST.tmp"
-}
-
-sync_tree() {
-    local src="$1"
-    local rel
-    mkdir -p "$SKILLS_HOME"
-    : > "$MANIFEST.tmp"
-    while IFS= read -r f; do
-        rel="${f#"$src"/}"
-        sync_file "$f" "$rel" || return 1
-    done < <(find "$src" -type f | sort)
-    mv "$MANIFEST.tmp" "$MANIFEST"
-}
-
-seed_preferences() {
-    local tmpl="$SKILLS_HOME/container-ambiente/preferences.example.md"
-    local dst="$SKILLS_HOME/container-ambiente/preferences.md"
-    if [ -f "$tmpl" ] && [ ! -f "$dst" ]; then
-        mkdir -p "$(dirname "$dst")"
-        cp "$tmpl" "$dst"
-        log "criado ${dst/#$HOME_DIR/~} (edite à vontade: nunca será sobrescrito)"
-    fi
-}
-
-install_to_etc() {
-    if [ "$INSTALL_ETC" != "1" ]; then
-        return 0
-    fi
-    if [ ! -d "$SKILLS_HOME" ]; then
-        return 0
-    fi
-    sudo mkdir -p "$SKILLS_ETC" || return 1
-    sudo cp -a "$SKILLS_HOME/." "$SKILLS_ETC/" || return 1
-    sudo chown -R root:root "$SKILLS_ETC" 2>/dev/null || true
-    sudo find "$SKILLS_ETC" -type d -exec chmod 755 {} + 2>/dev/null || true
-    sudo find "$SKILLS_ETC" -type f -exec chmod 644 {} + 2>/dev/null || true
-    log "skills instaladas em $SKILLS_ETC"
-}
-
-SRC_VAR="${SKILLS_SOURCE:-}"
-if [ -z "$SRC_VAR" ]; then
-    SRC_VAR=$(pick_source)
+UPDATE="${OPENCODE_UPDATE:-/etc/opencode/update/run.sh}"
+if [ -f "$UPDATE" ]; then
+    bash "$UPDATE" || log "atualizações do perfil com falha (continua mesmo assim)"
+else
+    log "script de atualização não encontrado: $UPDATE"
 fi
-
-if [ -n "$SRC_VAR" ] && [ -d "$SRC_VAR" ]; then
-    if [ "$SRC_VAR" = "$SKILLS_ETC" ]; then
-        : # fonte já é o local efetivo; nada a sincronizar
-    else
-        sync_tree "$SRC_VAR" || log "falha ao sincronizar skills (continua mesmo assim)"
-        seed_preferences
-    fi
-fi
-
-install_to_etc || log "falha ao instalar skills em /etc (continua mesmo assim)"
-
-enforce_rules() {
-    local user_agents="$HOME_DIR/.config/opencode/AGENTS.md"
-    local rules_dir="$HOME_DIR/.config/opencode/rules"
-    mkdir -p "$HOME_DIR/.config/opencode"
-
-    if [ -d /etc/opencode/rules ]; then
-        mkdir -p "$rules_dir"
-        cp -f /etc/opencode/rules/* "$rules_dir/" 2>/dev/null || true
-    fi
-
-    if [ ! -f "$user_agents" ]; then
-        if [ -f /etc/opencode/AGENTS.md ]; then
-            cp /etc/opencode/AGENTS.md "$user_agents"
-            log "regras oficiais instaladas em: ${user_agents/#$HOME_DIR/~}"
-        fi
-    else
-        if ! grep -q "Zero Secret Leak" "$user_agents" 2>/dev/null; then
-            if [ -f /etc/opencode/rules/zero-secret-leak.md ]; then
-                local tmp_agents
-                tmp_agents=$(mktemp)
-                cat /etc/opencode/rules/zero-secret-leak.md > "$tmp_agents"
-                printf "\n\n" >> "$tmp_agents"
-                cat "$user_agents" >> "$tmp_agents"
-                mv "$tmp_agents" "$user_agents"
-                log "diretriz Zero Secret Leak re-injetada em: ${user_agents/#$HOME_DIR/~}"
-            fi
-        fi
-    fi
-}
-
-enforce_rules || log "falha ao aplicar regras (continua mesmo assim)"
 
 if [ "$#" -gt 0 ] && [ "$1" = "opencode" ]; then
     shift

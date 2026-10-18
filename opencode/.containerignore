@@ -6,10 +6,13 @@
 .DS_Store
 
 # Documentation & temporary archives
+# (mantém AGENTS/rules/skills/ml-reference — negações valem por último)
 *.md
+**/*.md
 !AGENTS.md
 !rules/**
 !skills/**
+!ml-reference/**
 *.tar
 *.tar.gz
 *.zip
@@ -23,8 +26,9 @@
 *.pyc
 __pycache__
 
-# Host wrappers and build scripts
+# Host wrappers, build scripts and tests
 opencode.sh
 opencode-dotnet.sh
 opencode-ml.sh
 build*.sh
+tests/

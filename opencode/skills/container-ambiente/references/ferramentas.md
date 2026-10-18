@@ -6,14 +6,19 @@
 | `opencode` | O próprio agente |
 | `git` | Controle de versão |
 | `rg` (ripgrep) | Busca textual rápida |
-| `sudo` | Execução como superusuário para instalações pontuais efêmeras |
+| `curl` / `wget` | Downloads HTTP(S) |
+| `jq` | Manipulação de JSON |
+| `unzip` / `zip` | Arquivos compactados |
+| `tree` / `file` | Listagem hierárquica e identificação de arquivos |
+| `sudo` | Escopo mínimo p/ instalações efêmeras: só `apt-get`/`apt` e `npm -g` sem senha; demais comandos negados |
 | `apt` / `apt-get` | Gerenciador de pacotes Debian (instalação em runtime) |
 | `bash` | Shell padrão |
 | `ca-certificates` | Certificados HTTPS (read-only) |
 
-Nota: as variantes `opencode:dotnet` e `opencode:ml` adicionam `.NET SDK 10`,
-`roslynator`, `roslyn-language-server` (LSP), `dotnet-trace/counters/dump`,
-`curl`, `wget`, `jq`, `unzip`/`zip`, `tree` e `file`.
+Nota: as variantes acrescentam — `opencode:dotnet`: `.NET SDK 10`,
+`roslynator`, `roslyn-language-server` (LSP) e `dotnet-trace/counters/dump`;
+`opencode:ml`: `python3`, `numpy`, `matplotlib`, `dotnet-script` (`.csx`) e
+`/opt/ml`.
 
 Se a lista real divergir daqui (ex.: nova versão da imagem), confirme com
 `command -v <nome>` antes de depender da ferramenta.

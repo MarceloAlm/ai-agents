@@ -4,7 +4,11 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 echo "==> [1/4] Adicionando repositório Microsoft e instalando .NET SDK 10..."
-wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
+# Versão do Debian em execução (12, 13, ...): evita fixar a configuração
+# de um release específico enquanto node:lts-slim avança de release — a
+# Microsoft publica o repositório pelo número, não pelo codinome.
+DEBIAN_VER="$(. /etc/os-release && echo "${VERSION_ID%%.*}")"
+wget -q "https://packages.microsoft.com/config/debian/${DEBIAN_VER}/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb
 dpkg -i /tmp/packages-microsoft-prod.deb
 rm -f /tmp/packages-microsoft-prod.deb
 apt-get update
@@ -23,20 +27,11 @@ find /dotnet-tools/.store/roslyn-language-server -type f \
    -exec chmod +x {} +
 chown -R opencode:opencode /dotnet-tools
 
-echo "==> [3/4] Atualizando configuração com suporte a LSP..."
-cat << 'EOF' > /etc/opencode/opencode.json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "lsp": true,
-  "skills": { "paths": ["/etc/opencode/skills"] },
-  "permission": {
-    "edit": "allow",
-    "bash": "allow",
-    "read": "allow",
-    "external_directory": { "*": "allow" }
-  }
-}
-EOF
+echo "==> [3/4] Habilitando o LSP no opencode.json vindo da base..."
+# Fonte única da configuração é o scripts/setup-base.sh; aqui apenas aciona o
+# LSP sem duplicar o bloco permissions/skills (jq é instalado pela base).
+jq '.lsp = true' /etc/opencode/opencode.json > /etc/opencode/opencode.json.tmp \
+    && mv /etc/opencode/opencode.json.tmp /etc/opencode/opencode.json
 
 echo "==> [4/4] Limpeza de caches do NuGet e arquivos temporários..."
 apt-get clean
