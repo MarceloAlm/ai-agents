@@ -7,6 +7,10 @@
 - **Efemeridade do `sudo`:** O container opera com privilégio de `sudo` restrito ao gerenciamento de pacotes (`apt-get`/`apt`), mas alterações no sistema raiz são efêmeras e não persistem após o término da sessão. Para ferramentas de uso contínuo, proponha uma nova variante de container no repositório.
 - **Governança de skills:** A skill nativa `container-ambiente` é mantida pela imagem e sincronizada a cada boot. Especializações e regras próprias do usuário devem ser criadas em `~/.gemini/config/skills/<nome>/SKILL.md` (global) ou `.agents/skills/<nome>/SKILL.md` (no repositório).
 
+## Criação de Arquivos e Compatibilidade entre Sistemas
+- **Sem `/workspace` no conteúdo:** `/workspace` existe unicamente dentro do container do agente. Toda referência a caminhos em arquivos gerados (código, documentação, scripts e configurações) deve ser estritamente relativa para evitar falhas de mapeamento entre sistemas operacionais.
+- **Desativação de links em arquivos gerados:** Não criar links simbólicos (*symlinks*) nem inserir links absolutos ou dependentes de ambiente (como esquemas `file://` ou caminhos locais absolutos) dentro de arquivos do projeto, garantindo total compatibilidade entre plataformas (Linux, Windows, macOS).
+
 ## Proteção de Segredos (Zero Secret Leak)
 
 Regra obrigatória e inegociável para qualquer sessão neste ambiente. O sigilo prevalece sobre a conveniência: em caso de dúvida, não exponha.

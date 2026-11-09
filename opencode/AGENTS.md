@@ -4,6 +4,10 @@ As diretrizes desta política são obrigatórias e valem para qualquer sessão.
 
 Cópia gerada no perfil (`~/.config/opencode/AGENTS.md`) a cada inicialização a partir de `/etc/opencode/AGENTS.md` (imagem). As regras canônicas imutáveis (Zero Secret Leak) ficam em `/etc/opencode/rules/zero-secret-leak.md`.
 
+## Criação de Arquivos e Compatibilidade entre Sistemas
+- **Sem `/workspace` no conteúdo:** `/workspace` existe unicamente dentro do container do agente. Toda referência a caminhos em arquivos gerados (código, documentação, scripts e configurações) deve ser estritamente relativa para evitar falhas de mapeamento entre sistemas operacionais.
+- **Desativação de links em arquivos gerados:** Não criar links simbólicos (*symlinks*) nem inserir links absolutos ou dependentes de ambiente (como esquemas `file://` ou caminhos locais absolutos) dentro de arquivos do projeto, garantindo total compatibilidade entre plataformas (Linux, Windows, macOS).
+
 ## Proteção de Segredos (Zero Secret Leak)
 
 Regra obrigatória e inegociável para qualquer sessão neste ambiente. O sigilo prevalece sobre a conveniência: em caso de dúvida, não exponha.
