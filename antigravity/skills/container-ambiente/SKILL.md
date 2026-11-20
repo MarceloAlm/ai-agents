@@ -24,13 +24,13 @@ O agente Antigravity (CLI `agy`) roda **dentro de um container isolado** do host
 |---|---|---|
 | `/workspace` | **Sim** | Código do projeto (montado do host) |
 | `/home/antigravity` | **Sim** | Volume persistente `antigravity-home` (settings, tokens, skills de usuário) |
-| `/tmp` | **Não** | Diretório efêmero para arquivos temporários de análise |
+| `/tmp` | **Não** | Diretório efêmero para arquivos temporários de análise e caches voláteis (NuGet packages `NUGET_PACKAGES=/tmp/nuget/packages` e HTTP `NUGET_HTTP_CACHE_PATH=/tmp/nuget/v3-cache`) |
 
 ## Catálogo de Ferramentas Disponíveis
 
 Consulte a [lista detalhada de utilitários](references/ferramentas.md) para especificações completas de cada ferramenta instalada.
 
-- **Desenvolvimento & Diagnóstico .NET:** `dotnet` (.NET 10 SDK), `csharp-ls`, `roslynator`, `dotnet-dump`, `dotnet-trace`, `dotnet-counters`.
+- **Desenvolvimento & Diagnóstico .NET:** `dotnet` (.NET 10 SDK), `roslyn-language-server` (LSP C# oficial), `roslynator`, `dotnet-dump`, `dotnet-trace`, `dotnet-counters`, `dotnet-gcdump`, `dotnet-stack`.
 - **Linters & Qualidade de Código:** `shellcheck` (Shell/Bash), `sqlfluff` (SQL), `yq` (YAML/JSON processador Go).
 - **Inspeção & Manipulação de Arquivos:** `vim` (editor padrão), `ripgrep` (`rg`), `jq`, `gawk`, `sed`, `grep`, `file`, `dos2unix`, `zip`/`unzip`, `zstd`, `zcat`/`zgrep`.
 - **Rede & Diagnóstico de Servidor:** `curl`, `git`, `dig` (bind9-dnsutils), `traceroute`, `ping` (iputils-ping), `procps` (`ps`, `top`).

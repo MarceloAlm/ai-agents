@@ -179,9 +179,9 @@ O container injeta e mescla essa definição automaticamente no arquivo `~/.gemi
 |---|---|
 | `agy` | O próprio agente Antigravity CLI |
 | `.NET 10 SDK` | Compilar, testar e executar aplicações C# e F# |
-| `csharp-ls` | Servidor LSP de C# baseado em Roslyn |
+| `roslyn-language-server` | Servidor LSP oficial de C# baseado em Roslyn (Microsoft, com wrapper `csharp-ls`) |
 | `roslynator` | Análise estática, refatorações e linters C# |
-| `dotnet-dump`, `dotnet-trace`, `dotnet-counters` | Diagnóstico de performance, análise de dumps de memória e métricas |
+| `dotnet-dump`, `dotnet-trace`, `dotnet-counters`, `dotnet-gcdump`, `dotnet-stack` | Diagnóstico oficial .NET de memória (dumps completos e GC), traces, métricas e stacks |
 | `shellcheck` | Linter e validador estático para scripts Bash/sh |
 | `yq` | Parsing, extração e validação cirúrgica de arquivos YAML |
 | `sqlfluff` | Linter e formatador de queries SQL (MySQL, T-SQL, etc.) |

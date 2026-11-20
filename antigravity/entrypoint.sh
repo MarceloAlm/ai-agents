@@ -4,6 +4,11 @@ set -e
 ETC="${ANTIGRAVITY_ETC:-/etc/antigravity}"
 UPDATE="${ANTIGRAVITY_UPDATE:-$ETC/update/run.sh}"
 
+# Redireciona caches voláteis do NuGet para /tmp, evitando crescimento no volume persistente
+export NUGET_PACKAGES="${NUGET_PACKAGES:-/tmp/nuget/packages}"
+export NUGET_HTTP_CACHE_PATH="${NUGET_HTTP_CACHE_PATH:-/tmp/nuget/v3-cache}"
+mkdir -p "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" 2>/dev/null || true
+
 # Seed e sincronização da configuração na inicialização:
 # O volume persistente antigravity-home mascara /home/antigravity.
 SEED_DIR="$HOME/.gemini/antigravity-cli"
@@ -28,20 +33,15 @@ fi
 
 # 2. Mescla configurações padrão de permissões, modelo e chaveamento de autenticação
 if [ -f "$ETC/settings.json" ]; then
-    if [ -f "$SETTINGS" ]; then
-        jq -M -s --arg key "${GEMINI_API_KEY:-}" '
-          .[0] as $defaults |
-          .[1] as $user |
-          (($defaults * $user) |
-           .permissions.allow = (($defaults.permissions.allow // []) + ($user.permissions.allow // []) | unique) |
-           .permissions.ask = (($defaults.permissions.ask // []) + ($user.permissions.ask // []) | unique)) |
-          if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
-        ' "$ETC/settings.json" "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
-    else
-        jq -M --arg key "${GEMINI_API_KEY:-}" '
-          if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
-        ' "$ETC/settings.json" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
-    fi
+    [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
+    jq -M -s --arg key "${GEMINI_API_KEY:-}" '
+      .[0] as $defaults |
+      .[1] as $user |
+      (($defaults * $user) |
+       .permissions.allow = (($defaults.permissions.allow // []) + ($user.permissions.allow // []) | unique) |
+       .permissions.ask = (($defaults.permissions.ask // []) + ($user.permissions.ask // []) | unique)) |
+      if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
+    ' "$ETC/settings.json" "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
 elif [ -f "$SETTINGS" ]; then
     jq -M --arg key "${GEMINI_API_KEY:-}" '
       if ($key | length > 0) then .modelProvider = "gemini" else del(.modelProvider) end
@@ -53,16 +53,18 @@ fi
 BASE_MCP=""
 [ -f "$ETC/mcp_config.json" ] && BASE_MCP="$ETC/mcp_config.json"
 
-jq -M -s \
-  --arg gw_url "${MCP_GATEWAY_URL:-}" \
-  --arg gw_token "${MCP_TOKEN:-}" '
-    (if length > 1 then .[0] * .[1] else .[0] end) |
-    if ($gw_url | length > 0) then
-      .mcpServers.gateway = {
-        serverUrl: $gw_url
-      } + (if ($gw_token | length > 0) then { headers: { Authorization: ("Bearer " + $gw_token) } } else {} end)
-    else . end
-' "$MCP_CFG" ${BASE_MCP:+"$BASE_MCP"} > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
+if [ -n "$BASE_MCP" ] || [ -n "${MCP_GATEWAY_URL:-}" ]; then
+    jq -M -s \
+      --arg gw_url "${MCP_GATEWAY_URL:-}" \
+      --arg gw_token "${MCP_TOKEN:-}" '
+        (if length > 1 then .[0] * .[1] else .[0] end) |
+        if ($gw_url | length > 0) then
+          .mcpServers.gateway = {
+            serverUrl: $gw_url
+          } + (if ($gw_token | length > 0) then { headers: { Authorization: ("Bearer " + $gw_token) } } else {} end)
+        else . end
+    ' ${BASE_MCP:+"$BASE_MCP"} "$MCP_CFG" > "$MCP_CFG.tmp" && mv "$MCP_CFG.tmp" "$MCP_CFG"
+fi
 
 # 4. Tratamento de isolamento para a variante rea (Reverse Engineering)
 if [ "${AGY_VARIANT:-base}" = "rea" ]; then
@@ -86,13 +88,8 @@ if [ "${AGY_VARIANT:-base}" = "rea" ]; then
     }
 
     # Injeta a skill reverse-engineering temporariamente na sessão
-    REA_SKILL_SRC=""
-    if [ -d "$ETC/rea-skills/reverse-engineering" ]; then
-        REA_SKILL_SRC="$ETC/rea-skills/reverse-engineering"
-    elif [ -d "$ETC/skills/reverse-engineering" ]; then
-        REA_SKILL_SRC="$ETC/skills/reverse-engineering"
-    fi
-    if [ -n "$REA_SKILL_SRC" ]; then
+    REA_SKILL_SRC="$ETC/skills/reverse-engineering"
+    if [ -d "$REA_SKILL_SRC" ]; then
         mkdir -p "$CONFIG_DIR/skills/reverse-engineering"
         cp -a "$REA_SKILL_SRC/." "$CONFIG_DIR/skills/reverse-engineering/"
     fi

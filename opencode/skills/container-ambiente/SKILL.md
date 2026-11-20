@@ -29,7 +29,7 @@ não no host.
 |---|---|---|
 | `/workspace` | **Sim** | Projeto atual (bind mount do host). |
 | `/home` (= `/home/opencode`) | **Sim** | Volume `opencode-home`: config do opencode, credenciais, histórico, cache npm e skills. |
-| `/tmp` | **Não** | Escrita livre, mas o conteúdo some quando o container encerra. |
+| `/tmp` | **Não** | Escrita livre, descartável quando o container encerra (inclui caches voláteis do NuGet: pacotes e HTTP). |
 
 Regra prática: o que precisar durar vai para `/workspace` ou `/home`; `/tmp` é descartável.
 

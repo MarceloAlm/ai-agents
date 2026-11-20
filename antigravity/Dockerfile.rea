@@ -18,7 +18,8 @@ COPY mcp_config.rea.json /etc/antigravity/mcp_config.json
 COPY skills/reverse-engineering/ /etc/antigravity/skills/reverse-engineering/
 
 RUN chmod -R 755 /etc/antigravity \
-    && find /etc/antigravity -type f -exec chmod 644 {} +
+    && find /etc/antigravity -type f -exec chmod 644 {} + \
+    && chmod 755 /etc/antigravity/update/*.sh
 
 ENV AGY_VARIANT=rea
 

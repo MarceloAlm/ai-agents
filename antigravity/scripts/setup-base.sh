@@ -40,8 +40,21 @@ mkdir -p /dotnet-tools
 dotnet tool install --tool-path /dotnet-tools dotnet-trace
 dotnet tool install --tool-path /dotnet-tools dotnet-counters
 dotnet tool install --tool-path /dotnet-tools dotnet-dump
+dotnet tool install --tool-path /dotnet-tools dotnet-gcdump
+dotnet tool install --tool-path /dotnet-tools dotnet-stack
 dotnet tool install --tool-path /dotnet-tools roslynator.dotnet.cli
-dotnet tool install --tool-path /dotnet-tools csharp-ls
+dotnet tool install --tool-path /dotnet-tools roslyn-language-server --prerelease
+
+find /dotnet-tools/.store/roslyn-language-server -type f \
+   \( -name 'roslyn-language-server' -o -name 'Microsoft.CodeAnalysis.LanguageServer' \) \
+   -exec chmod +x {} +
+
+# Wrapper para compatibilidade com clientes/scripts que chamam csharp-ls
+cat << 'EOF' > /dotnet-tools/csharp-ls
+#!/bin/sh
+exec /dotnet-tools/roslyn-language-server "$@"
+EOF
+chmod +x /dotnet-tools/csharp-ls
 
 echo "==> [5/6] Criando usuário antigravity (UID 1100), permissões e assets..."
 groupadd --gid 1100 antigravity

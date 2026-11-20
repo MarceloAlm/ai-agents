@@ -30,9 +30,6 @@ install -m 0440 /tmp/opencode.sudoers /etc/sudoers.d/opencode
 rm -f /tmp/opencode.sudoers
 
 echo "==> [3/5] Instalando OpenCode 2 (@opencode/cli) via npm (versão: $OPENCODE_VERSION)..."
-# Remove uma eventual instalação legada da linha 1.x (opencode-ai), que disputa
-# o mesmo binário "opencode" e não pode coexistir com a V2.
-npm uninstall -g opencode-ai 2>/dev/null || true
 npm i -g --no-fund --no-audit "@opencode/cli@${OPENCODE_VERSION}"
 npm cache clean --force 2>/dev/null || true
 

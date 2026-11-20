@@ -48,5 +48,15 @@ if [ -d "$CFG/rules" ]; then
 fi
 rm -f "$CFG/.image-version" # nome antigo do controle de versão no perfil
 
+# Caches do NuGet migrados para /tmp: limpa resíduos do volume persistente do perfil
+if [ -d "$HOME_DIR/.nuget" ]; then
+    rm -rf "$HOME_DIR/.nuget"
+    log "cache de pacotes migrado: ~/.nuget removido do perfil persistente"
+fi
+if [ -d "$HOME_DIR/.local/share/NuGet" ]; then
+    rm -rf "$HOME_DIR/.local/share/NuGet"
+    log "cache HTTP migrado: ~/.local/share/NuGet removido do perfil persistente"
+fi
+
 printf '%s\n' "$version" > "$APPLIED" || exit 1
 log "atualizações da versão $version aplicadas ao perfil"

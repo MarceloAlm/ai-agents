@@ -9,9 +9,9 @@
 | `apt` / `apt-get` | Gerenciador de pacotes Debian (instalação em runtime) |
 | `dpkg` / `apt-cache` | Consulta de pacotes instalados e disponíveis |
 | `dotnet` (SDK 10) | Compilação, execução, testes e gerenciamento de projetos .NET 10 (C#/F#) |
-| `csharp-ls` | Servidor LSP C# baseado em Roslyn para análise semântica e navegação |
+| `roslyn-language-server` | Servidor LSP C# oficial baseado em Roslyn para análise semântica e navegação (wrapper `csharp-ls` incluído) |
 | `roslynator` | Análise estática, linting e refatorações de código C# (.NET) |
-| `dotnet-dump` / `dotnet-trace` / `dotnet-counters` | Diagnóstico: dumps de memória, traces de execução e métricas em tempo real |
+| `dotnet-dump` / `dotnet-trace` / `dotnet-counters` / `dotnet-gcdump` / `dotnet-stack` | Diagnóstico oficial .NET: dumps de memória (completos e GC), traces, métricas e stack traces |
 | `shellcheck` | Análise estática e detecção de bugs em scripts Bash/sh |
 | `yq` | Processamento, filtros e validação de arquivos YAML (estilo `jq`) |
 | `sqlfluff` | Linter e validador de sintaxe SQL com suporte a dialetos (MySQL, T-SQL) |
@@ -40,7 +40,7 @@
 1. **Bash (`.sh`):** Use `shellcheck <script.sh>` para validar sintaxe, boas práticas e evitar armadilhas de quoting antes de propor mudanças.
 2. **YAML (`.yml`, `.yaml`):** Em vez de ler arquivos YAML inteiros de centenas de linhas, use `yq '.caminho.chave' arquivo.yml` para extrair valores específicos com precisão cirúrgica.
 3. **SQL (MySQL e SQL Server):** Valide queries e migrations com `sqlfluff lint <arquivo.sql> --dialect mysql` ou `--dialect tsql` para evitar misturar dialetos proprietários.
-4. **C# / .NET:** Use `roslynator analyze` e `csharp-ls` para obter diagnósticos semânticos estruturados do compilador Roslyn.
+4. **C# / .NET:** Use `dotnet format`, `roslynator analyze` e `roslyn-language-server` para obter diagnósticos semânticos estruturados do compilador Roslyn.
 5. **DNS:** Prefira sempre `dig` sobre `nslookup`. O `dig` oferece saída estruturada, controle granular de flags e é o padrão de referência para troubleshooting de rede.
 6. **Editores:** O `vim` está configurado como editor padrão do ambiente (`EDITOR=vim`, `VISUAL=vim` e link prioritário `/usr/bin/editor`). O `nano` também está disponível para quem preferir um editor alternativo.
 

@@ -14,6 +14,8 @@ ENV PATH="/dotnet-tools:${PATH}" \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1 \
     DOTNET_RUNNING_IN_CONTAINER=true \
+    NUGET_PACKAGES=/tmp/nuget/packages \
+    NUGET_HTTP_CACHE_PATH=/tmp/nuget/v3-cache \
     GEMINI_FORCE_FILE_STORAGE=true \
     TZ=America/Sao_Paulo \
     LANG=pt_BR.UTF-8 \
@@ -38,7 +40,7 @@ COPY update/ /etc/antigravity/update/
 
 # Carimbo da versão: fonte de verdade das atualizações do perfil em runtime
 RUN printf '%s\n' "${IMAGE_VERSION}" > /etc/antigravity/.image-version \
-    && chmod 755 /usr/local/bin/antigravity-entrypoint.sh /etc/antigravity/update/*.sh \
+    && chmod 755 /usr/local/bin/antigravity-entrypoint.sh \
     && chmod -R 755 /etc/antigravity \
     && find /etc/antigravity -type f -exec chmod 644 {} + \
     && chmod 755 /etc/antigravity/update/*.sh
