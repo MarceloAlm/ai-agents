@@ -18,7 +18,7 @@ for f in "$REPO/entrypoint.sh" "$REPO"/update/*.sh "$REPO"/scripts/*.sh \
     fi
 done
 
-echo "== JSON (opencode.json embutido no setup-base) =="
+echo "== JSON (opencode.json v1 e v2 embutidos no setup-base) =="
 if awk '/<< .EOF. > \/etc\/opencode\/opencode.json/{f=1;next} /^EOF$/{f=0} f' "$REPO/scripts/setup-base.sh" | jq empty; then
     echo "  ok"
 else
@@ -68,14 +68,18 @@ else
     FAIL=1
 fi
 
-echo "== Dockerfiles (scripts montados por bind, sem camada temporária) =="
+echo "== Dockerfiles (base debian:trixie-slim e scripts montados por bind) =="
 DOCKER_OK=1
+if ! grep -q '^FROM debian:trixie-slim$' "$REPO/Dockerfile"; then
+    echo "  FAIL Dockerfile base deve ser debian:trixie-slim"
+    DOCKER_OK=0
+fi
 if grep -Hn 'COPY scripts/' "$REPO"/Dockerfile* 2>/dev/null; then
     echo "  FAIL COPY de script temporário presente"
     DOCKER_OK=0
 fi
-if [ "$(grep -ho 'RUN --mount=type=bind,source=scripts/' "$REPO"/Dockerfile* | wc -l)" != "3" ]; then
-    echo "  FAIL esperados 3 RUN --mount=type=bind de scripts"
+if [ "$(grep -ho 'RUN --mount=type=bind,source=scripts/' "$REPO"/Dockerfile* | wc -l)" != "2" ]; then
+    echo "  FAIL esperados 2 RUN --mount=type=bind de scripts"
     DOCKER_OK=0
 fi
 if [ "$DOCKER_OK" = 1 ]; then

@@ -1,6 +1,7 @@
-# Variante opencode:dotnet — Construída incrementalmente sobre a base opencode:latest
+# Variante opencode:dotnet — Construída incrementalmente sobre a base opencode:latest (ou :1-*)
 # Adiciona .NET 10 SDK, ferramentas de diagnóstico e LSP C# (Roslyn)
-FROM opencode:latest
+ARG BASE_IMAGE=opencode:latest
+FROM ${BASE_IMAGE}
 
 USER root
 

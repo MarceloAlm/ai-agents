@@ -1,4 +1,5 @@
-FROM node:lts-slim
+# Base mínima padronizada com o container do Antigravity (Debian 13 / trixie-slim)
+FROM debian:trixie-slim
 
 ARG OPENCODE_VERSION=latest
 ARG IMAGE_VERSION=dev
@@ -6,7 +7,16 @@ ARG IMAGE_VERSION=dev
 # tinha (engines antigas não hasheavam o conteúdo de RUN --mount; o build.sh
 # calcula o valor)
 ARG SETUP_HASH=
-ENV OPENCODE_VARIANT=base
+
+LABEL org.opencontainers.image.version="${OPENCODE_VERSION}"
+
+ENV TZ=America/Sao_Paulo \
+    LANG=pt_BR.UTF-8 \
+    LANGUAGE=pt_BR:pt:en \
+    LC_ALL=pt_BR.UTF-8 \
+    EDITOR=vim \
+    VISUAL=vim \
+    OPENCODE_VARIANT=base
 
 # Provisionamento (apt/npm) isolado: mudanças no /etc ou no entrypoint não
 # devem invalidar esta camada cara. O script é montado por bind em vez de
@@ -24,7 +34,10 @@ COPY update/ /etc/opencode/update/
 
 # Carimbo da versão: fonte de verdade das atualizações do perfil em runtime
 RUN printf '%s\n' "${IMAGE_VERSION}" > /etc/opencode/.image-version \
-    && chmod 755 /usr/local/bin/opencode-entrypoint.sh /etc/opencode/update/*.sh
+    && chmod 755 /usr/local/bin/opencode-entrypoint.sh \
+    && chmod -R 755 /etc/opencode \
+    && find /etc/opencode -type f -exec chmod 644 {} + \
+    && chmod 755 /etc/opencode/update/*.sh
 
 WORKDIR /workspace
 USER opencode

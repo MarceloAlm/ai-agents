@@ -9,10 +9,21 @@ mkdir -p /etc/sudoers.d /etc/opencode /workspace
 groupadd --gid 1100 opencode
 useradd --uid 1100 --gid opencode --shell /bin/bash --create-home opencode
 
-echo "==> [2/5] Instalando ferramentas do sistema..."
+echo "==> [2/6] Instalando ferramentas do sistema, locales e Node.js 22 LTS..."
 apt-get update
 apt-get install -y --no-install-recommends \
-    ripgrep git ca-certificates curl wget jq unzip zip tree file sudo
+    ripgrep git ca-certificates curl wget jq unzip zip tree tzdata locales vim \
+    file sudo
+
+echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+update-alternatives --set editor /usr/bin/vim.basic 2>/dev/null || true
+ln -snf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
+echo "America/Sao_Paulo" > /etc/timezone
+
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y --no-install-recommends nodejs
 
 # Sudo mínimo: só instalações pontuais efêmeras (apt/npm), conforme o SKILL
 # container-ambiente. Os argumentos casam como string concatenada — o
@@ -29,13 +40,42 @@ EOF
 install -m 0440 /tmp/opencode.sudoers /etc/sudoers.d/opencode
 rm -f /tmp/opencode.sudoers
 
-echo "==> [3/5] Instalando OpenCode 2 (@opencode/cli) via npm (versão: $OPENCODE_VERSION)..."
-npm i -g --no-fund --no-audit "@opencode/cli@${OPENCODE_VERSION}"
+if [[ "$OPENCODE_VERSION" =~ ^1(\.|$) ]]; then
+    echo "==> [3/6] Instalando OpenCode 1 (opencode-ai) via npm (versão: $OPENCODE_VERSION)..."
+    npm i -g --no-fund --no-audit "opencode-ai@${OPENCODE_VERSION}"
+else
+    echo "==> [3/6] Instalando OpenCode 2 (@opencode/cli) via npm (versão: $OPENCODE_VERSION)..."
+    npm i -g --no-fund --no-audit "@opencode/cli@${OPENCODE_VERSION}"
+fi
 npm cache clean --force 2>/dev/null || true
 
-echo "==> [4/5] Configurando permissões e arquivo de configuração do opencode (formato nativo V2)..."
+echo "==> [4/6] Configurando permissões e arquivo de configuração do opencode..."
 chown -R opencode:opencode /workspace
-cat << 'EOF' > /etc/opencode/opencode.json
+if [[ "$OPENCODE_VERSION" =~ ^1(\.|$) ]]; then
+    cat << 'EOF' > /etc/opencode/opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "skills": { "paths": ["/etc/opencode/skills"] },
+  "permission": {
+    "edit": "allow",
+    "bash": "allow",
+    "external_directory": { "*": "allow" },
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      "*id_rsa": "ask",
+      "*id_ed25519": "ask",
+      "*.pem": "ask",
+      "*.key": "ask",
+      "*credentials*": "ask",
+      "*.env.example": "allow"
+    }
+  }
+}
+EOF
+else
+    cat << 'EOF' > /etc/opencode/opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
   "skills": ["/etc/opencode/skills"],
@@ -55,6 +95,7 @@ cat << 'EOF' > /etc/opencode/opencode.json
   ]
 }
 EOF
+fi
 
 chown -R root:root /etc/opencode
 chmod -R 755 /etc/opencode

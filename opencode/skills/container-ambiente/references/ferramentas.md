@@ -15,10 +15,8 @@
 | `bash` | Shell padrão |
 | `ca-certificates` | Certificados HTTPS (read-only) |
 
-Nota: as variantes acrescentam — `opencode:dotnet`: `.NET SDK 10`,
-`roslynator`, `roslyn-language-server` (LSP) e `dotnet-trace/counters/dump`;
-`opencode:ml`: `python3`, `numpy`, `matplotlib`, `dotnet-script` (`.csx`) e
-`/opt/ml`.
+Nota: a variante `opencode:dotnet` acrescenta `.NET SDK 10`,
+`roslynator`, `roslyn-language-server` (LSP) e `dotnet-trace/counters/dump`.
 
 Se a lista real divergir daqui (ex.: nova versão da imagem), confirme com
 `command -v <nome>` antes de depender da ferramenta.

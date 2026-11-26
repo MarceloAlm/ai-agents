@@ -20,20 +20,17 @@ As imagens são construídas de forma estritamente **incremental**, reutilizando
 
 ```
 opencode:latest (Base)
-  |  Node.js LTS, npm, OpenCode 2 (@opencode/cli), ripgrep, git, curl, jq, sudo (escopo apt/npm)
+  |  Debian 13 (trixie-slim), Node.js 22 LTS, npm, OpenCode 2 (@opencode/cli), ripgrep, git, curl, jq, sudo (escopo apt/npm)
   |
   +---> opencode:dotnet (Incremental sobre base)
-          |  .NET 10 SDK, dotnet-trace/dump, roslynator, LSP C# (Roslyn)
-          |
-          +---> opencode:ml (Incremental sobre dotnet)
-                 Python (numpy, matplotlib), dotnet-script (.csx), /opt/ml
+          .NET 10 SDK, dotnet-trace/dump, roslynator, LSP C# (Roslyn)
 ```
 
 | Imagem | Camada | Conteúdo |
 |---|---|---|
-| `opencode:latest` | Base | Node.js LTS, npm, OpenCode 2 (`@opencode/cli`), `ripgrep`, `git`, `curl`, `jq`, `sudo` (escopo apt/npm) |
+| `opencode:latest` (`opencode:2.0`) | Base | `debian:trixie-slim` + Node.js 22 LTS, npm, OpenCode 2 (`@opencode/cli`), `ripgrep`, `git`, `curl`, `jq`, `tzdata`, `locales`, `vim`, `sudo` (escopo apt/npm) |
+| `opencode:1` (`opencode:1.*`) | Base (v1) | Mesma base `debian:trixie-slim` com OpenCode 1 (`opencode-ai`) e `opencode.json` no formato v1 |
 | `opencode:dotnet` | Incremental | Base + .NET 10 SDK, `dotnet-trace`/`counters`/`dump`, `roslynator`, `roslyn-language-server` (LSP C#) |
-| `opencode:ml` | Incremental | Dotnet + `python3`, `numpy`, `matplotlib`, `dotnet-script` (`.csx`), `/opt/ml` |
 
 ---
 
@@ -41,12 +38,12 @@ opencode:latest (Base)
 
 Para que o agente e o ambiente saibam exatamente qual variante está sendo executada:
 
-- Cada imagem possui a variável fixa `ENV OPENCODE_VARIANT` (`base`, `dotnet` ou `ml`).
+- Cada imagem possui a variável fixa `ENV OPENCODE_VARIANT` (`base` ou `dotnet`).
 - O entrypoint registra automaticamente essa informação no volume compartilhado:
 
 ```bash
 cat ~/.config/opencode/variant
-# Retorna: base, dotnet ou ml
+# Retorna: base ou dotnet
 ```
 
 O controle de versão do perfil vive na imagem: o Dockerfile grava o carimbo em `/etc/opencode/.image-version` e os scripts que atualizam o `/home` ficam em `/etc/opencode/update/`. A cada inicialização o `entrypoint.sh` chama `update/run.sh`, que:
@@ -72,16 +69,11 @@ A partir da raiz do repositório:
 # ou
 ./opencode/build.sh dotnet
 
-# Variante de Machine Learning em C# (opencode:ml)
-./opencode/build-ml.sh
-# ou
-./opencode/build.sh ml
-
 # Construir todas as variantes em ordem incremental
 ./opencode/build.sh all
 ```
 
-O script detecta automaticamente a versão mais recente do **OpenCode 2** (`@opencode/cli`) no npm e constrói as camadas na ordem de dependência. Para fixar uma versão específica, passe-a como argumento (ex.: `./opencode/build.sh 2.0.31`).
+O script detecta automaticamente a versão mais recente do **OpenCode 2** (`@opencode/cli`) no npm, gera `opencode:2.0` → `opencode:latest` (além da tag da versão exata) e constrói as camadas na ordem de dependência. Para builds de revisões da **versão 1** (`opencode-ai`), passe `1` ou a revisão exata (ex.: `./opencode/build.sh 1` ou `./opencode/build.sh 1.19.6`), gerando `opencode:1` e `opencode:<versão>` sem sobrescrever `opencode:latest`. Para fixar uma versão v2 específica, passe-a como argumento (ex.: `./opencode/build.sh 2.4.2`).
 
 Cada build recebe ainda um carimbo de versão da imagem (variável `IMAGE_VERSION`, data/hora UTC, sobrescrevível no momento do build — ex.: `IMAGE_VERSION=2026.10 ./opencode/build.sh`), gravado pelo Dockerfile em `/etc/opencode/.image-version`. É esse arquivo que dispara a atualização do perfil na primeira execução da imagem nova (ver [5.6](#56-referências-internas)).
 
@@ -99,10 +91,6 @@ sudo chmod +x /usr/local/bin/opencode
 # Variante .NET 10 SDK + LSP
 sudo cp opencode/opencode-dotnet.sh /usr/local/bin/opencode-dotnet
 sudo chmod +x /usr/local/bin/opencode-dotnet
-
-# Variante Machine Learning
-sudo cp opencode/opencode-ml.sh /usr/local/bin/opencode-ml
-sudo chmod +x /usr/local/bin/opencode-ml
 ```
 
 ### 4.2 Executar no projeto
@@ -112,7 +100,6 @@ cd /caminho/do/projeto
 
 opencode          # base
 opencode-dotnet   # com .NET e LSP
-opencode-ml       # com Machine Learning
 ```
 
 Todas as variantes montam o projeto em `/workspace` e compartilham o volume `opencode-home:/home/opencode`, mantendo histórico, credenciais e configurações unificadas.

@@ -21,7 +21,7 @@ não no host.
 - **Acesso à internet:** disponível (`git`, `curl`, `wget`, `npx`, downloads de dependências funcionam normalmente).
 - **Projeto atual:** `/workspace` é o bind mount do projeto do usuário no host.
 - **Usuário:** não-root (`opencode`, uid/gid 1100), mapeado para o uid/gid 1000 do host via `--userns=keep-id:uid=1100,gid=1100`, com **`sudo` sem senha restrito a `apt-get`/`apt` e `npm -g`** (instalações efêmeras; qualquer outro comando com sudo é negado — a conta não tem senha).
-- **Variante ativa:** Informada na variável `$OPENCODE_VARIANT` e registrada em `~/.config/opencode/variant` (`base`, `dotnet` ou `ml`).
+- **Variante ativa:** Informada na variável `$OPENCODE_VARIANT` e registrada em `~/.config/opencode/variant` (`base` ou `dotnet`).
 
 ## Pastas e persistência
 
@@ -37,7 +37,6 @@ Regra prática: o que precisar durar vai para `/workspace` ou `/home`; `/tmp` é
 
 - **Base (`opencode:latest`):** `node`/`npm`, `opencode`, `git`, `rg`, `curl`, `wget`, `jq`, `unzip`/`zip`, `tree`, `file`, `bash`, `sudo`.
 - **Dotnet (`opencode:dotnet`):** base + **`.NET SDK 10`**, `dotnet-trace/counters/dump`, `roslynator`, `roslyn-language-server` (LSP C#).
-- **Machine Learning (`opencode:ml`):** dotnet + `python3`, `numpy`, `matplotlib`, `dotnet-script` (.csx) e `/opt/ml`.
 
 Consulte a [lista completa](references/ferramentas.md) e confirme no momento com `command -v <nome>`.
 
@@ -45,7 +44,7 @@ Consulte a [lista completa](references/ferramentas.md) e confirme no momento com
 
 - **Instalações em tempo de execução são efêmeras:** `sudo apt-get install -y <pacote>`, `sudo npm i -g <pacote>`. Não sobrevivem ao encerramento do container (`--rm`).
 - **Escopo do sudo:** passam sem senha só `apt-get`/`apt` (`install`, `update`, `upgrade`, `autoremove`, `autoclean`, `clean`) e `npm -g` (`install`/`i`/`uninstall`/`remove`) — com o subcomando **primeiro** (ex.: `sudo apt-get install -y rg`; `sudo apt-get -y install rg` é negado). Todo o resto falha por senha inexistente. Para algo fora do escopo (ex.: `chown` de arquivo criado por root), peça ao usuário para rodar `podman exec -u root <container>` no host.
-- **Ferramentas recorrentes:** se algo for fundamental ao projeto de forma contínua, **não dependa de reinstalação a cada sessão** — proponha e ajude o usuário a criar uma **nova variante de container** no repositório (pasta, `Dockerfile` e `build.sh`, no formato das variantes `opencode:dotnet` e `opencode:ml`).
+- **Ferramentas recorrentes:** se algo for fundamental ao projeto de forma contínua, **não dependa de reinstalação a cada sessão** — proponha e ajude o usuário a criar uma **nova variante de container** no repositório (pasta, `Dockerfile` e `build.sh`, no formato da variante `opencode:dotnet`).
 - `/etc/ssl/certs` vem do pacote `ca-certificates` da própria imagem.
 
 ## Proteção de Segredos (Zero Secret Leak)
